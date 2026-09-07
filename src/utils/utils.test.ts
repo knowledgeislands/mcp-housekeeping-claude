@@ -1,7 +1,10 @@
+import { spawn } from 'node:child_process'
+import { EventEmitter } from 'node:events'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { PassThrough } from 'node:stream'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   assertRealPathWithinRoot,
   daysAgo,
@@ -16,6 +19,11 @@ import {
   readJsonIfExists,
   resolveWithinRoot
 } from './utils.js'
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>()
+  return { ...actual, spawn: vi.fn(actual.spawn) }
+})
 
 describe('resolveWithinRoot', () => {
   const root = '/tmp/local-root'
@@ -201,20 +209,22 @@ describe('duBytes / duEntries / pathExists / readJsonIfExists', () => {
     }
   })
 
-  it('duBytes rejects with a timeout error when du outlives the time bound', async () => {
-    // Build a tree with enough entries that `du` cannot finish within a 1ms
-    // bound; Node sends SIGKILL and runDuSk rejects with a timeout message.
-    const bigRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'utils-dutimeout-'))
-    try {
-      for (let i = 0; i < 200; i++) {
-        const sub = path.join(bigRoot, `d${i}`)
-        await fs.mkdir(sub, { recursive: true })
-        await fs.writeFile(path.join(sub, 'f.txt'), 'x'.repeat(512))
-      }
-      await expect(duBytes(bigRoot, 1)).rejects.toThrow(/du timed out after 1ms/)
-    } finally {
-      await fs.rm(bigRoot, { recursive: true, force: true })
-    }
+  it('duBytes rejects a timeout-signalled subprocess deterministically', async () => {
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(),
+      stderr: new PassThrough()
+    })
+
+    vi.mocked(spawn).mockImplementationOnce(() => {
+      queueMicrotask(() => child.emit('close', null, 'SIGKILL'))
+      return child as never
+    })
+
+    await expect(duBytes('/timeout-fixture', 1)).rejects.toThrow(/du timed out after 1ms/)
+    expect(spawn).toHaveBeenLastCalledWith('du', ['-sk', '/timeout-fixture'], {
+      timeout: 1,
+      killSignal: 'SIGKILL'
+    })
   })
 
   it('pathExists returns true for an existing path, false otherwise', async () => {
