@@ -12,7 +12,7 @@ An MCP (Model Context Protocol) server for housekeeping the three filesystem are
 - **Path-safe** — every path is validated against its configured root; memory operations are also confined to their `memory/` subdir.
 - **No network, no auth** — pure local filesystem over MCP stdio.
 
-**Quality:** 307 tests; 100% statement, branch, function, and line coverage.
+**Quality:** the full test suite enforces 100% statement, branch, function, and line coverage.
 
 ## Available Tools
 
