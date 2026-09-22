@@ -8,10 +8,19 @@
 // secrets: the server only needs MCP_HOUSEKEEPING_CLAUDE_PATH to point at an
 // existing dir, so we hand it the OS temp dir and crank the access level up to
 // `destructive` so every gated tool shows up.
+//
+// This is also the repository's protocol boundary. The MCP 2026-07-28 standard
+// puts `server/discover`, protocol stamping, and cache defaults inside the SDK,
+// so nothing in src/ can be inspected to prove them — only a live round trip
+// can. What is asserted here: the modern era is selected, the negotiated
+// version is 2026-07-28, discovery returns a complete result naming this
+// server, the tool surface is unchanged, a real call returns a valid envelope,
+// a malformed call is rejected, and the deliberate legacy fallback still serves
+// an identical surface.
 
 import { tmpdir } from 'node:os'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { Client } from '@modelcontextprotocol/client'
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 
 // Single source of truth for the tool surface — kept in sync with the
 // per-group registration tests. If you add a tool, update both.
@@ -69,14 +78,14 @@ const die = (msg: string, detail?: unknown): never => {
   process.exit(1)
 }
 
-const main = async (): Promise<void> => {
-  const transport = new StdioClientTransport({
+// Raise the access level to `destructive` so the smoke test sees the full
+// surface; the server's default (read only) would otherwise hide every
+// mutating tool. Point the required HOUSEKEEPING_PATH at the OS temp dir so
+// config validation passes without touching real Claude data.
+const createTransport = (): StdioClientTransport =>
+  new StdioClientTransport({
     command: 'node',
     args: ['dist/mcp-server/index.js'],
-    // Raise the access level to `destructive` so the smoke test sees the full
-    // surface; the server's default (read only) would otherwise hide every
-    // mutating tool. Point the required HOUSEKEEPING_PATH at the OS temp dir so
-    // config validation passes without touching real Claude data.
     env: {
       ...(process.env as Record<string, string>),
       MCP_HOUSEKEEPING_CLAUDE_ACCESS_LEVEL: 'destructive',
@@ -84,11 +93,29 @@ const main = async (): Promise<void> => {
       MCP_HOUSEKEEPING_CLAUDE_AUDIT_LOG: 'off'
     }
   })
-  const client = new Client({ name: 'mcp-housekeeping-claude-smoke', version: '0.0.0' }, { capabilities: {} })
 
-  await client.connect(transport)
+const main = async (): Promise<void> => {
+  const client = new Client(
+    { name: 'mcp-housekeeping-claude-smoke', version: '0.0.0' },
+    { capabilities: {}, versionNegotiation: { mode: 'auto' } }
+  )
+
+  await client.connect(createTransport())
 
   try {
+    const discovery = client.getDiscoverResult()
+    if (client.getProtocolEra() !== 'modern') die('server/discover did not select the modern protocol era')
+    if (client.getNegotiatedProtocolVersion() !== '2026-07-28') {
+      die('unexpected negotiated protocol version', client.getNegotiatedProtocolVersion())
+    }
+    if (
+      discovery?.resultType !== 'complete' ||
+      !discovery.supportedVersions.includes('2026-07-28') ||
+      discovery._meta?.['io.modelcontextprotocol/serverInfo']?.name !== 'mcp-housekeeping-claude'
+    ) {
+      die('invalid server/discover result', discovery)
+    }
+
     const { tools } = await client.listTools()
     const names = tools.map((t) => t.name).sort()
     const expected = [...EXPECTED_TOOLS].sort()
@@ -104,7 +131,40 @@ const main = async (): Promise<void> => {
     const missingSchema = tools.filter((t) => !t.inputSchema || typeof t.inputSchema !== 'object').map((t) => t.name)
     if (missingSchema.length) die('tools missing inputSchema', missingSchema)
 
-    console.error(`✓ smoke passed: ${names.length} tools listed, all schemas present`)
+    // A real read-only call against the temp-dir report root. The v2 client
+    // validates the required wire-level `resultType` before returning, then
+    // lifts a complete result into the stable callTool shape without the
+    // discriminator — so reaching here at all proves the envelope was valid.
+    const reports = await client.callTool({ name: 'claude_desktop_reports_list', arguments: {} })
+    if (reports.isError) die('tool call returned an error envelope', reports)
+
+    // The same tool with an argument its strict schema forbids must be
+    // rejected rather than silently accepted.
+    const malformed = await client.callTool({
+      name: 'claude_desktop_reports_list',
+      arguments: { not_a_real_argument: 1 }
+    })
+    if (!malformed.isError) die('malformed tool arguments were accepted', malformed)
+
+    // The server keeps a deliberate legacy fallback (`legacy: 'serve'`) for
+    // clients that have not migrated. A client that does not negotiate must
+    // still land on the legacy era and see the identical tool surface.
+    const legacyClient = new Client({ name: 'mcp-housekeeping-claude-legacy-smoke', version: '0.0.0' }, {
+      capabilities: {}
+    })
+    await legacyClient.connect(createTransport())
+    try {
+      if (legacyClient.getProtocolEra() !== 'legacy') {
+        die('legacy initialize fallback did not remain available', legacyClient.getProtocolEra())
+      }
+      if ((await legacyClient.listTools()).tools.length !== EXPECTED_TOOLS.length) {
+        die('legacy tool surface differs from modern tool surface')
+      }
+    } finally {
+      await legacyClient.close()
+    }
+
+    console.error(`✓ smoke passed: modern discovery, legacy fallback, ${names.length} tools, valid result envelope`)
   } finally {
     await client.close()
   }

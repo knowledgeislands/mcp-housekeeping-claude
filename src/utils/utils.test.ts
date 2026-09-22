@@ -88,6 +88,7 @@ describe('assertRealPathWithinRoot', () => {
 describe('errorResult / jsonResult', () => {
   it('errorResult returns the MCP error shape with action prefix', () => {
     expect(errorResult('doing the thing', new Error('boom'))).toEqual({
+      resultType: 'complete',
       isError: true,
       content: [{ type: 'text', text: 'Error doing the thing: boom' }]
     })
@@ -95,6 +96,7 @@ describe('errorResult / jsonResult', () => {
 
   it('errorResult stringifies non-Error values', () => {
     expect(errorResult('doing the thing', 'plain string')).toEqual({
+      resultType: 'complete',
       isError: true,
       content: [{ type: 'text', text: 'Error doing the thing: plain string' }]
     })
@@ -103,6 +105,14 @@ describe('errorResult / jsonResult', () => {
   it('jsonResult serialises a payload', () => {
     const r = jsonResult({ x: 1 })
     expect(JSON.parse(r.content[0]?.text ?? '')).toEqual({ x: 1 })
+  })
+
+  // The MCP 2026-07-28 profile requires every synchronous helper to declare a
+  // complete result. Asserting it on both helpers means dropping the
+  // discriminator fails here rather than only at the wire boundary.
+  it('both helpers declare a complete result for the modern protocol profile', () => {
+    expect(errorResult('doing the thing', new Error('boom')).resultType).toBe('complete')
+    expect(jsonResult({ x: 1 }).resultType).toBe('complete')
   })
 })
 

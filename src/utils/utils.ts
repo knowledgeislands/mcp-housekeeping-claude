@@ -53,8 +53,14 @@ export const errMessage = (err: unknown): string => {
   return err instanceof Error ? err.message : String(err)
 }
 
+// `resultType: 'complete'` is the MCP 2026-07-28 discriminator separating a
+// finished tool result from a streamed or deferred one. Both helpers are
+// synchronous and always return the whole result, so both are complete. The v2
+// client validates the discriminator on the wire and then lifts it away, so the
+// shape a caller sees is unchanged.
 export const errorResult = (action: string, error: unknown) => {
   return {
+    resultType: 'complete' as const,
     isError: true as const,
     content: [{ type: 'text' as const, text: `Error ${action}: ${errMessage(error)}` }]
   }
@@ -62,6 +68,7 @@ export const errorResult = (action: string, error: unknown) => {
 
 export const jsonResult = (payload: unknown) => {
   return {
+    resultType: 'complete' as const,
     structuredContent: payload as Record<string, unknown>,
     content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }]
   }

@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/server'
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
 import type { Config } from '../../config/index.js'
@@ -119,6 +119,7 @@ describe('Claude Desktop result contracts', () => {
       const result = await registration?.handler({ space_id: 'space', name: 'note.md', workspace: 'missing' })
 
       expect(result).toEqual({
+        resultType: 'complete',
         isError: true,
         content: [
           {

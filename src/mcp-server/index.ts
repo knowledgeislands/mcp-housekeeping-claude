@@ -18,8 +18,8 @@
  */
 
 import * as fs from 'node:fs/promises'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { McpServer } from '@modelcontextprotocol/server'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import pkg from '../../package.json' with { type: 'json' }
 import { loadConfig } from '../config/index.js'
 import { registerClaudeCodeTools, registerClaudeDesktopTools, registerVscodeTools } from '../tools/index.js'
@@ -38,20 +38,31 @@ console.error(
   `  MCP_HOUSEKEEPING_CLAUDE_AUDIT_LOG=${config.auditLogMode}${config.auditLogMode === 'off' ? '' : ` (path: ${config.auditLogPath})`}`
 )
 
-const server = new McpServer({
-  name: 'mcp-housekeeping-claude',
-  version: pkg.version
-})
-server.registerTool = makeAccessGatedRegister(server, config.accessLevel, {
-  mode: config.auditLogMode,
-  path: config.auditLogPath,
-  maxBytes: config.auditLogMaxBytes,
-  keep: config.auditLogKeep
-})
+/**
+ * Per-connection server factory. `serveStdio` decides the protocol era from the
+ * opening exchange and pins exactly one instance from this factory for the
+ * lifetime of that connection, so every server-scoped thing — the access gate,
+ * the audit-log wrapper, and the registered tools — is built here rather than
+ * once at module scope. The same factory serves the modern 2026-07-28 era and
+ * the retained legacy era, so both see an identical tool surface.
+ */
+const createServer = (): McpServer => {
+  const server = new McpServer({
+    name: 'mcp-housekeeping-claude',
+    version: pkg.version
+  })
+  server.registerTool = makeAccessGatedRegister(server, config.accessLevel, {
+    mode: config.auditLogMode,
+    path: config.auditLogPath,
+    maxBytes: config.auditLogMaxBytes,
+    keep: config.auditLogKeep
+  })
 
-registerClaudeDesktopTools(server, config)
-registerClaudeCodeTools(server, config)
-registerVscodeTools(server, config)
+  registerClaudeDesktopTools(server, config)
+  registerClaudeCodeTools(server, config)
+  registerVscodeTools(server, config)
+  return server
+}
 
 const reportAccessibility = async (label: string, p: string): Promise<void> => {
   try {
@@ -75,9 +86,20 @@ const main = async (): Promise<void> => {
   await reportAccessibility('CLAUDE_CODE_ROOT_PATH', config.claudeCodeRootPath)
   await reportAccessibility('VSCODE_WORKSPACE_STORAGE_ROOT_PATH', config.vscodeWorkspaceStorageRootPath)
 
-  const transport = new StdioServerTransport()
-  await server.connect(transport)
+  // `legacy: 'serve'` is deliberate. Clients of this server are local runtimes
+  // whose versions are not controlled from here, so a 2025-era opening is still
+  // served from the same factory rather than refused. The smoke test asserts
+  // that fallback, so retiring it has to be a decision rather than a drift.
+  const handle = serveStdio(createServer, {
+    legacy: 'serve',
+    onerror: (error) => console.error('mcp-housekeeping-claude stdio error:', error)
+  })
   console.error(`mcp-housekeeping-claude ready`)
+
+  process.on('SIGINT', async () => {
+    await handle.close()
+    process.exit(0)
+  })
 }
 
 main().catch((err) => {
