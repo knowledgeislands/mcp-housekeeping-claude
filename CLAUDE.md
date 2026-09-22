@@ -2,7 +2,7 @@
 
 @AGENTS.md
 
-Guidance for Claude Code when working in this repo. The user-facing tool surface, install/config, and example workflows live in [README.md](./README.md); this file covers what Claude needs to know that isn't in README and isn't derivable from one grep.
+Guidance for Claude Code when working in this repo. The user-facing tool surface and example workflows live in [README.md](./README.md), and the install, configuration, safety and development instructions live in [docs/guides/](./docs/guides/README.md); this file covers what Claude needs to know that isn't in README and isn't derivable from one grep.
 
 ## Bun vs Node
 

@@ -14,4 +14,4 @@ Use snake_case `<app>_<resource>_<action>` tool names. Register through the anno
 
 Constrain every filesystem path to its configured root, including symlink-aware containment. Validate user-controlled identifiers with tight schemas. Invoke subprocesses through argv APIs, never shell strings. Mutating or non-idempotent tools require an explicit, default-true `dry_run` where applicable. Keep Zod schemas strict. Tests use isolated fixtures and never exercise real user roots.
 
-Keep user-facing installation, configuration, and tool reference in README; record only runtime-specific deltas in CLAUDE.md.
+Keep the tool catalogue in README and the practical instructions in `docs/guides/`, under the audience that needs them; record only runtime-specific deltas in CLAUDE.md.

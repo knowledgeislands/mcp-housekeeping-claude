@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest. This file covers the dev loop, conventions, and what to check before you open a PR.
+Thanks for your interest. This file covers the dev loop, conventions, and what to check before you open a PR. The [developer guides](./docs/guides/developer/README.md) go further: [local development](./docs/guides/developer/local-development.md) explains what each script is for and how to run the server against a real client, and [adding a tool](./docs/guides/developer/adding-a-tool.md) walks the whole path for a new tool.
 
 ## Setup
 
