@@ -10,7 +10,7 @@ blocked_by: []
 transferred_from: ki-website
 baseline_ref: 23cf33eb1be0bb73de3ac2dcbce90d772721fd07
 created_at: 2026-09-21T15:44:00Z
-updated_at: 2026-09-22T07:30:00Z
+updated_at: 2026-09-24T09:14:00Z
 ---
 
 ## Goal
@@ -25,7 +25,7 @@ KI Website now declares, for every page it publishes under `apps/site/src/guidan
 
 That is a pull, not an obligation: KI Website derives, it does not own. This repository decides what its guides say and when they change.
 
-Separately, `ki-guides` is being asked to require audience directories under `docs/guides/` rather than permitting a flat collection (`ki-agentic-harness` `KI-HARNESS-GOV-083`). If that lands, this repository's collection has to satisfy it.
+Separately, `KI-HARNESS-GOV-083` has clarified `ki-guides`: audience directories are recommended when stable reader groups make a collection easier to navigate, while flat and mixed collections remain valid. This item therefore stands on this repository's own readers and routing needs, not a universal Harness requirement.
 
 ## Boundary
 
@@ -93,7 +93,7 @@ No code gate is required: `src/`, tests, and `package.json` are untouched. `bun 
 
 ## Dependencies / blocks
 
-Nothing blocks this. `KI-HARNESS-GOV-083` in `ki-agentic-harness` proposes making audience directories a `ki-guides` requirement: if it lands first this collection satisfies it by construction, and if it lands later this collection already conforms. KI Website intends to derive public guidance from these guides and cite them at a pinned ref, but it derives rather than owns and its schedule does not gate this work.
+Nothing blocks this. `KI-HARNESS-GOV-083` is advisory rather than a universal migration requirement; this item's audience grouping remains justified by the repository-local reader distinctions described above. KI Website intends to derive public guidance from these guides and cite them at a pinned ref, but it derives rather than owns and its schedule does not gate this work.
 
 MCP-CH-FND-004 is `awaiting-review` on this same tree and touched `package.json`, `src/`, and `scripts/`; this item touches none of them, and the two records do not conflict. The guides describe the delivered state of that migration where it is user-visible - the server name, the stdio entry point, the smoke command - which is accurate on the current tree either way.
 
@@ -127,7 +127,7 @@ The README is now orienting and routing only: what the server is, a Documentatio
 
 Immutable baseline: `23cf33eb1be0bb73de3ac2dcbce90d772721fd07`, the commit that shaped this record to `ready`. No file under `src/`, no test, and no `package.json` script was touched, so the code gates are unaffected and were not re-run as evidence here, exactly as `## Verify` states.
 
-### Summary of changes
+### Change Summary
 
 `.ki.toml` gains `[skills.ki-guides]` in the foundation block immediately after `[skills.ki-authoring]`, matching the position the sibling repositories `tools-mgit` and `tools-git-almanac` use.
 
@@ -162,7 +162,7 @@ None blocking.
 
 Two things a reviewer should see rather than discover. The README catalogue remains hand-maintained, and this item repaired a drift of three tools rather than removing the possibility of another; the guides now say explicitly that the catalogue is the single hand-maintained inventory and that `scripts/smoke.ts` holds the wire-level list the smoke test asserts, so a future drift has two places that disagree loudly rather than one that drifts quietly. A mechanical generator remains possible and is deliberately not proposed here, because `ki-repo-mcp` requires the catalogue to be in the README and generating into a README section is a build step this repository does not otherwise have.
 
-The `ki-guides` change to require audience directories (`KI-HARNESS-GOV-083`) had not landed when this was written. The collection satisfies it as written anyway, because every guide sits under an audience directory and no guide sits at the collection root.
+`KI-HARNESS-GOV-083` ultimately retained audience grouping as an advisory navigation judgment rather than a universal path requirement. This collection remains well grouped because its user, operator, and developer readers are genuinely distinct, not because every guide must sit beneath an audience directory.
 
 ### Post-change review
 

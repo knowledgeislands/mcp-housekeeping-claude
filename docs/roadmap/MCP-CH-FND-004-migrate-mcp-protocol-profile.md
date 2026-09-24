@@ -9,7 +9,7 @@ blocks: []
 blocked_by: []
 baseline_ref: 56dfca2e9ab84d756ae8c2e8e30cb486d49c4897
 created_at: 2026-09-02T01:12:46Z
-updated_at: 2026-09-22T07:05:00Z
+updated_at: 2026-09-24T09:18:00Z
 ---
 
 ## Goal
@@ -108,7 +108,7 @@ The stated exclusions were honoured. The forty-two tool names, their input and o
 
 Immutable baseline: `56dfca2e9ab84d756ae8c2e8e30cb486d49c4897`. That baseline was itself green on every gate under the legacy profile - typecheck clean, Biome exit 0, 315 tests passing, coverage thresholds met, `ki repo audit` PASS at 15 skills, smoke listing 42 tools - which is the passing legacy audit the acceptance boundary required before migration.
 
-### Summary of changes
+### Change Summary
 
 `package.json` swaps `@modelcontextprotocol/sdk` `^1.30.0` for `@modelcontextprotocol/server` `2.0.0` in `dependencies`, adds `@modelcontextprotocol/client` `2.0.0` to `devDependencies`, and raises `zod` from the exact `4.4.3` to `^4.6.5` (resolved `4.6.5`). `bun.lock` follows.
 
