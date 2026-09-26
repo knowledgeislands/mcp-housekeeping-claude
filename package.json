@@ -1,6 +1,6 @@
 {
   "name": "@knowledgeislands/mcp-housekeeping-claude",
-  "description": "MCP for auditing and pruning Claude Code session files and memory on the local filesystem.",
+  "description": "MCP for auditing and pruning Claude Desktop, Claude Code, and VS Code session state on local filesystems.",
   "version": "0.9.0",
   "author": "kris@kris.me.uk",
   "bin": {
@@ -59,11 +59,13 @@
   "keywords": [
     "anthropic",
     "audit",
+    "bun",
     "claude",
     "filesystem",
     "housekeeping",
     "mcp",
-    "model-context-protocol"
+    "model-context-protocol",
+    "typescript"
   ],
   "license": "MIT",
   "lint-staged": {
