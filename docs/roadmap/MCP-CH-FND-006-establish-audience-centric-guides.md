@@ -4,13 +4,13 @@ title: Establish audience-centric guides
 area: FND
 theme: foundation-tooling
 horizon: now
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 transferred_from: ki-website
 baseline_ref: 23cf33eb1be0bb73de3ac2dcbce90d772721fd07
 created_at: 2026-09-21T15:44:00Z
-updated_at: 2026-09-26T17:30:33Z
+updated_at: 2026-09-26T18:10:52Z
 ---
 
 ## Goal
@@ -196,6 +196,10 @@ Delivered an audience-centric guide collection for this server: `docs/guides/` w
 Deliberate decision: no tool-inventory guide, because a hand-written copy of the tool list drifts - as this repository's own README had already proved.
 
 Verification: `ki-guides`, `ki-authoring`, and the full `ki repo audit` all PASS, the last at 16 skills; `bunx rumdl check .` clean; catalogue and registrations agree at 42 names. No code gate was required.
+
+## Done
+
+Accepted 2026-09-26 by Kris Brown on the review packet above.
 
 ## Discussion
 

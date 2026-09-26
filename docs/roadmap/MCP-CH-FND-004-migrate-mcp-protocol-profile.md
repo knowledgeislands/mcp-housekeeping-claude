@@ -4,12 +4,12 @@ area: FND
 title: Migrate MCP protocol profile
 theme: foundation-tooling
 horizon: next
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: 56dfca2e9ab84d756ae8c2e8e30cb486d49c4897
 created_at: 2026-09-02T01:12:46Z
-updated_at: 2026-09-24T09:18:00Z
+updated_at: 2026-09-26T18:10:52Z
 ---
 
 ## Goal
@@ -162,6 +162,10 @@ Verification: typecheck, Biome, 316 tests, 100 per cent coverage, build, smoke, 
 Concerns: none blocking; two pre-existing observations recorded above.
 
 Proposed learning routes, offered rather than taken. The durable lesson - that a deep-equality assertion on a result envelope couples a test to the protocol profile, so a profile change surfaces as a test failure in an apparently unrelated file - is small and already encoded in the test itself. The repository-level question of when the legacy fallback should be retired belongs to a future work record with fleet evidence, not to this one. Neither is promoted automatically.
+
+## Done
+
+Accepted 2026-09-26 by Kris Brown on the review packet above.
 
 ## Discussion
 
