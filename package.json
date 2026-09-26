@@ -6,9 +6,6 @@
   "bin": {
     "mcp-housekeeping-claude": "dist/mcp-server/index.js"
   },
-  "bugs": {
-    "url": "https://github.com/knowledgeislands/mcp-housekeeping-claude/issues"
-  },
   "dependencies": {
     "@modelcontextprotocol/server": "2.1.0",
     "zod": "^4.6.5"
