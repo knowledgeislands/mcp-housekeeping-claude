@@ -2,7 +2,7 @@
 
 Use this guide when preparing a source change to this repository. It covers running the server from source, where its configuration comes from in that mode, driving it interactively, and the gate to run before handing a change over.
 
-[`CONTRIBUTING.md`](../../../CONTRIBUTING.md) owns the clone-and-install setup, the commit convention, the testing convention, and the pre-PR checklist. This guide covers the mechanics those conventions assume.
+For a fresh checkout, install Bun 1.3 or later and Node 22 or later, clone `https://github.com/knowledgeislands/mcp-housekeeping-claude.git`, enter the checkout, and run `bun install`. Use Conventional Commits, add tests with code changes, and run the complete gate below before handover. The root `CONTRIBUTING.md` retains the repository-wide contribution contract; this guide contains the mechanics needed to follow it.
 
 ## Run the server from source
 

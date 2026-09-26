@@ -10,7 +10,7 @@ blocked_by: []
 transferred_from: ki-website
 baseline_ref: 23cf33eb1be0bb73de3ac2dcbce90d772721fd07
 created_at: 2026-09-21T15:44:00Z
-updated_at: 2026-09-24T09:14:00Z
+updated_at: 2026-09-26T17:30:33Z
 ---
 
 ## Goal
@@ -119,6 +119,8 @@ No further roadmap change is expected. If writing the guides exposes behaviour t
 
 ### Delivered
 
+Review remediation on 2026-09-26 brought the collection into the current `GUIDE-4` boundary. The nine links from guides to root Markdown documents were removed without removing their operative content: developer setup, contribution expectations, architecture and security invariants, catalogue maintenance, and escalation steps now read completely inside `docs/guides/`. Root documents continue to route readers into the collection.
+
 The goal is met. `docs/guides/` now exists as a gated collection with a routing index and three audience directories - `user/`, `operator/`, `developer/` - holding thirteen documents between them, and `.ki.toml` declares `[skills.ki-guides]`, so the grouping is checked rather than conventional. `ki repo audit` reports PASS at 16 skills, one more than the 15 recorded at the baseline, and the added skill is `ki-guides`.
 
 The instruction moved rather than multiplied. Every practical section named in the plan left `README.md` as it landed in a guide: Quick Start, Installation, Configuration with its environment table, footnotes, Claude Desktop JSON, Running From Source and Workspaces, Development, Security Model, Troubleshooting, and Extending the Server. A grep for each moved artefact finds it in exactly one document - the `mcpServers` client block appears only in `docs/guides/user/installation.md`, and the six `MCP_HOUSEKEEPING_*` table rows only in `docs/guides/user/configuration.md`.
@@ -128,6 +130,8 @@ The README is now orienting and routing only: what the server is, a Documentatio
 Immutable baseline: `23cf33eb1be0bb73de3ac2dcbce90d772721fd07`, the commit that shaped this record to `ready`. No file under `src/`, no test, and no `package.json` script was touched, so the code gates are unaffected and were not re-run as evidence here, exactly as `## Verify` states.
 
 ### Change Summary
+
+The review remediation changed four guide files. `developer/README.md` now states the collection boundary without delegating its procedures; `developer/adding-a-tool.md` states the operative invariants and names root catalogue and contract files as unlinked identifiers; `developer/local-development.md` now includes fresh-checkout prerequisites and handover expectations; and `user/troubleshooting.md` gives an actionable escalation path while naming `CLAUDE.md` only as repository-wide context. No source, package, root contract, or tool-surface file changed.
 
 `.ki.toml` gains `[skills.ki-guides]` in the foundation block immediately after `[skills.ki-authoring]`, matching the position the sibling repositories `tools-mgit` and `tools-git-almanac` use.
 
@@ -145,6 +149,13 @@ Three deviations from the approved plan, none expanding scope. First, `user/runn
 
 ### Verification
 
+Review remediation gates after the final edits:
+
+- `ki repo audit --skill ki-guides --repo . --concise --progress never` - PASS, with all nine `GUIDE-4` findings removed.
+- `ki repo audit --skill ki-authoring --repo . --concise --progress never` - no FAIL; one pre-existing `OWN-1` warning for `.rumdl.toml` template drift.
+- `ki repo audit --repo . --concise --progress never` - no FAIL; two warnings: the same pre-existing `OWN-1` drift and expected `DIST-1` development-checkout release evidence.
+- `bunx rumdl check .` - PASS.
+
 Every gate below was run from the repository root after the last edit.
 
 - `ki repo audit --skill ki-guides --concise --progress never` - PASS. `summary: KI REPO AUDIT on mcp-housekeeping-claude PASS · 1 skill`.
@@ -158,6 +169,8 @@ No code gate was required or run: `src/`, the tests, and `package.json` are unto
 
 ### Outstanding concerns
 
+The guide-boundary failures found during review are resolved. This remediation adds no new concern and does not close or accept the item; the catalogue-maintenance risk already recorded below remains the reviewer's only guide-specific observation.
+
 None blocking.
 
 Two things a reviewer should see rather than discover. The README catalogue remains hand-maintained, and this item repaired a drift of three tools rather than removing the possibility of another; the guides now say explicitly that the catalogue is the single hand-maintained inventory and that `scripts/smoke.ts` holds the wire-level list the smoke test asserts, so a future drift has two places that disagree loudly rather than one that drifts quietly. A mechanical generator remains possible and is deliberately not proposed here, because `ki-repo-mcp` requires the catalogue to be in the README and generating into a README section is a build step this repository does not otherwise have.
@@ -166,6 +179,8 @@ Two things a reviewer should see rather than discover. The README catalogue rema
 
 ### Post-change review
 
+The corrected dependency direction is root-inward: `README.md` and `CONTRIBUTING.md` point readers into `docs/guides/`, while a guide carries the complete procedure and mentions a root contract or catalogue only as an unlinked repository identifier. This preserves one governing authority without making a reader leave the collection to complete a task.
+
 The decision the brief asked to be taken deliberately is recorded in two places. There is no tool-inventory guide, and there will not be one: a hand-written per-tool reference in `docs/guides/` would have been the third copy of the same list after the README catalogue and `EXPECTED_TOOLS`, and the evidence that such a copy drifts was already in this repository - the README claimed 39 tools against 42 registered, having missed the entire `claude_code_sessions_*` acquisition group. The guides therefore teach what does not drift: the naming convention, how the access level is derived from annotations rather than names, and how to read the live surface through the Inspector or `server/discover`. The reasoning is in `docs/guides/README.md` so that a future author meets it before writing the guide, not only in this record.
 
 The audiences are the three this server actually has. A **user** installs it, points it at their machine, and asks Claude questions; they run at `read` and their failure modes are configuration ones. An **operator** runs it at `destructive` and deletes real state; that is a different operating context rather than a more advanced version of the same one, because the gate, the `dry_run` defaults, and the irreversibility of pruning only become relevant once the level is raised - and the safety model is prime guide material precisely for that reader. A **developer** changes the code. Two further audiences were considered and rejected: an **integrator** (the package does export real entry points, but there is no known consumer and no procedure to document, so a guide would be speculative) and a **release** audience (there is no release script and no publish pipeline, and `CONTRIBUTING.md` already states that version bumps are derived by hand).
@@ -173,6 +188,8 @@ The audiences are the three this server actually has. A **user** installs it, po
 Regression risk is low and concentrated in links. Every intra-repository link in the new guides is relative and was resolved against the tree; no document in the repository still links into a README section that no longer exists.
 
 ### Mini recap
+
+The review remediation removed nine out-of-collection Markdown links from four guides, made the affected procedures self-contained, retained root files as unlinked governing identifiers, and restored the `ki-guides` pass. The item remains `awaiting-review`; it has not been self-accepted.
 
 Delivered an audience-centric guide collection for this server: `docs/guides/` with a routing index and user, operator, and developer directories holding thirteen documents, `[skills.ki-guides]` declared in `.ki.toml`, and every instructional section moved out of the README rather than copied. The README is now orientation, catalogue, and routing; its catalogue was repaired from 39 to 42 tools, adding the three `claude_code_sessions_*` acquisition tools it had never listed. `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, and `.env.example` now point where the instructions actually are.
 

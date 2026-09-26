@@ -2,7 +2,7 @@
 
 Use this guide when adding a tool to one of the three groups, or changing an existing one in a way that moves its arguments, its annotations, or its name.
 
-The invariants behind these steps — the layering, the access-level gate, and the seven security requirements — are stated in [`CLAUDE.md`](../../../CLAUDE.md) and runtime-neutrally in [`AGENTS.md`](../../../AGENTS.md). This guide is the procedure; those documents are the contract, and where they disagree with this guide they win.
+This procedure carries the operative invariants: keep protocol wiring thin, inject configuration, constrain every path lexically and physically, register through an honest annotation preset, return strict envelopes, and test only against isolated fixtures. The root `CLAUDE.md` and `AGENTS.md` files remain the repository-wide contracts, but no step below depends on reading them.
 
 ## Before you begin
 
@@ -59,8 +59,8 @@ A new tool name exists in four places, and they drift independently unless they 
 
 1. **`scripts/smoke.ts`** — the `EXPECTED_TOOLS` array is the wire-level source of truth. The smoke test fails until it matches.
 2. **The group's registration test** — `src/tools/<group>/schemas.test.ts`, where one exists for the schemas you touched.
-3. **[The README tool catalogue](../../../README.md#available-tools)** — the one hand-maintained inventory, including the tool count in the Features list. It is hand-maintained deliberately, and [the guides index](../README.md#why-there-is-no-tool-inventory-guide) explains why there is no second copy in these guides; the price of that decision is that this step is not optional.
-4. **[`CLAUDE.md`](../../../CLAUDE.md)** — only if the change alters an architecture invariant or a security requirement, not for an ordinary tool addition.
+3. **The `README.md` tool catalogue** — the one hand-maintained inventory, including the tool count in the Features list. It is hand-maintained deliberately, and [the guides index](../README.md#why-there-is-no-tool-inventory-guide) explains why there is no second copy in these guides; the price of that decision is that this step is not optional.
+4. **`CLAUDE.md`** — only if the change alters an architecture invariant or a security requirement, not for an ordinary tool addition.
 
 The guides describe tool families and procedures rather than enumerating tools, so a new tool does not normally require a guide change. It does when the tool introduces a new _kind_ of risk or a new routine — a new irreversible operation belongs in [The safety model](../operator/safety-model.md), and a new cleanup procedure belongs in [Cleaning up state](../operator/cleaning-up-state.md).
 

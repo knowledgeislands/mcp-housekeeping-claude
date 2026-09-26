@@ -57,4 +57,6 @@ There is no undo. The deleting tools use `fs.unlink` and `fs.rm`, which do not r
 
 ## Still stuck
 
-The boot-time stderr lines are the best evidence about configuration, and the audit log at `<MCP_HOUSEKEEPING_CLAUDE_PATH>/audit/audit.jsonl` is the best evidence about what was actually called. For behaviour rather than configuration, [`CLAUDE.md`](../../../CLAUDE.md) documents the architecture invariants and security requirements the tools are built to, and the tool descriptions in the running server are authoritative over any document, including this one.
+Preserve the failing arguments and error, confirm the tool stayed inside its configured root and access level, and report any path-containment or unintended-deletion concern privately rather than in a public issue.
+
+The boot-time stderr lines are the best evidence about configuration, and the audit log at `<MCP_HOUSEKEEPING_CLAUDE_PATH>/audit/audit.jsonl` is the best evidence about what was actually called. For behaviour rather than configuration, `CLAUDE.md` documents the architecture invariants and security requirements the tools are built to, and the tool descriptions in the running server are authoritative over any document, including this one.

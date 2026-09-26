@@ -2,7 +2,7 @@
 
 These guides are for anyone changing this repository: adding a tool, fixing a defect, or working out why a gate fails. They assume a checkout rather than an installed package, and they describe this repository's own working practice rather than general TypeScript advice.
 
-The conventions themselves live elsewhere and are not repeated here. [`CONTRIBUTING.md`](../../../CONTRIBUTING.md) holds contributor setup, the commit convention, the testing convention, and the pre-PR checklist. [`CLAUDE.md`](../../../CLAUDE.md) holds the architecture invariants and the seven security requirements every tool must preserve, and [`AGENTS.md`](../../../AGENTS.md) states them runtime-neutrally. These guides cover the procedures those conventions imply.
+This collection contains the complete procedures for working on the server. The root `CONTRIBUTING.md`, `CLAUDE.md`, and `AGENTS.md` files remain the repository-wide contribution and agent contracts, but following a procedure here does not require leaving the collection.
 
 ## Work on the server locally
 
