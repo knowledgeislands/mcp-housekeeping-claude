@@ -11,6 +11,8 @@
 harnesses = ["knowledgeislands/ki-agentic-harness"]
 
 [skills.ki-repo]
+repo_type = "project"
+primary_shape = "ki-repo-mcp"
 repository = "https://github.com/knowledgeislands/mcp-housekeeping-claude"
 title = "mcp-housekeeping-claude"
 description = "MCP for auditing and pruning Claude Desktop, Claude Code, and VS Code session state on local filesystems."
