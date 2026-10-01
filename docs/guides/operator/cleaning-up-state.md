@@ -36,6 +36,18 @@ An orphan is a project whose complete bounded session evidence names one source 
 
 **Recovery.** None. Relocate anything you meant to keep _before_ pruning, because after the directory is gone there is nothing left to relocate.
 
+## Prune Claude Desktop sessions and outputs
+
+**Audit.** `claude_desktop_sessions_obsolete` counts aged regular `local_*.json` records and shows the oldest ten, while `claude_desktop_outputs_obsolete` lists direct files in each session's `outputs/` and `uploads/`. The cleanup previews use the complete selector, including sessions beyond the audit's ten-row display. A session is obsolete only when its JSON mtime is strictly older than the cutoff; output cleanup falls back to its directory mtime only when the JSON is absent.
+
+**Preview.** Call `claude_desktop_sessions_prune` or `claude_desktop_outputs_prune` with `older_than_days`, leave `dry_run` at its default, and specify `workspace` when more than one workspace exists. Read every candidate, path, byte estimate, and skip reason. Both tools require the `destructive` access level even for preview.
+
+**Act.** Re-run the same tool with `dry_run: false`. Session pruning removes each selected JSON record and its matching sidecar directory, including nested contents. Output pruning removes only direct regular files in both `outputs/` and `uploads/`; it preserves the session JSON, directories, and nested files. Neither tool accepts an arbitrary session name for deletion.
+
+**Verify.** Re-run the corresponding audit. The effect rechecks age, file identity, and containment before removal, so a file changed since preview may be skipped. `removed`, `affected_bytes`, `skipped`, and `partial` describe actual progress; cleanup is not a transaction and a later failure may leave only part of a session removed.
+
+**Recovery.** None inside the server. If a session or upload may still matter, inspect it before setting `dry_run: false`; rely on a filesystem backup for deleted content.
+
 ## Prune Claude Desktop artifacts
 
 **Audit.** `claude_desktop_artifacts_health` reports per-artifact metadata with flags for churn, staleness, and unstarred-and-idle. `claude_desktop_storage_summary` gives the area totals.

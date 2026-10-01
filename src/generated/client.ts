@@ -36,6 +36,12 @@ export async function createKitMcpClaudeHousekeepingClient(options: CreateClient
       return wrapCallResult(raw).callResult;
     },
 
+    async claude_desktop_sessions_prune(params: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_sessions_prune"]>[0]) {
+      const tool = proxy.claudeDesktopSessionsPrune as (args: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_sessions_prune"]>[0]) => Promise<unknown>;
+      const raw = await tool(params);
+      return wrapCallResult(raw).callResult;
+    },
+
     async claude_desktop_artifacts_health(params: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_artifacts_health"]>[0]) {
       const tool = proxy.claudeDesktopArtifactsHealth as (args: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_artifacts_health"]>[0]) => Promise<unknown>;
       const raw = await tool(params);
@@ -44,6 +50,12 @@ export async function createKitMcpClaudeHousekeepingClient(options: CreateClient
 
     async claude_desktop_outputs_obsolete(params: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_outputs_obsolete"]>[0]) {
       const tool = proxy.claudeDesktopOutputsObsolete as (args: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_outputs_obsolete"]>[0]) => Promise<unknown>;
+      const raw = await tool(params);
+      return wrapCallResult(raw).callResult;
+    },
+
+    async claude_desktop_outputs_prune(params: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_outputs_prune"]>[0]) {
+      const tool = proxy.claudeDesktopOutputsPrune as (args: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_outputs_prune"]>[0]) => Promise<unknown>;
       const raw = await tool(params);
       return wrapCallResult(raw).callResult;
     },
@@ -176,4 +188,3 @@ export async function createKitMcpClaudeHousekeepingClient(options: CreateClient
   };
   return client;
 }
-

@@ -20,7 +20,7 @@ The server boots but the client shows nothing. In order of likelihood:
 
 ## Only some tools appeared
 
-This is the access-level gate working as intended. At the default `read` level the fifteen deleting tools are never registered, so they cannot appear in the tool list and cannot be called. Raise `MCP_HOUSEKEEPING_CLAUDE_ACCESS_LEVEL` to `destructive` and restart the client, having read [The safety model](../operator/safety-model.md) first.
+This is the access-level gate working as intended. At the default `read` level the seventeen deleting tools are never registered, so they cannot appear in the tool list and cannot be called. Raise `MCP_HOUSEKEEPING_CLAUDE_ACCESS_LEVEL` to `destructive` and restart the client, having read [The safety model](../operator/safety-model.md) first.
 
 A tool that exists but returns an error on every call is a different problem — usually a missing root, covered next.
 

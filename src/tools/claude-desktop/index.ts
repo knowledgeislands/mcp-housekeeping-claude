@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { Config } from '../../config/index.js'
 import * as audit from '../../main/claude-desktop/audit.js'
+import * as cleanup from '../../main/claude-desktop/cleanup.js'
 import * as memory from '../../main/claude-desktop/memory.js'
 import * as report from '../../main/claude-desktop/report.js'
 import * as sessions from '../../main/claude-desktop/sessions.js'
@@ -156,6 +157,33 @@ const obsoleteOutputsOutput = workspaceResultOutput({
       .strict()
   )
 })
+const pruneResultBase = {
+  workspace: z.string(),
+  older_than_days: countOutput,
+  cutoff_date: z.string(),
+  dry_run: z.boolean(),
+  candidate_bytes: countOutput,
+  removed: z.array(z.object({ path: z.string(), bytes: countOutput }).strict()),
+  affected_bytes: countOutput,
+  skipped: z.array(z.object({ path: z.string(), reason: z.string() }).strict()),
+  partial: z.boolean()
+}
+const sessionsPruneOutput = z
+  .object({
+    ...pruneResultBase,
+    candidates: z.array(z.object({ session: z.string(), paths: z.array(z.string()), bytes: countOutput }).strict())
+  })
+  .strict()
+const outputsPruneOutput = z
+  .object({
+    ...pruneResultBase,
+    candidates: z.array(
+      z
+        .object({ session: z.string(), area: z.enum(['outputs', 'uploads']), name: z.string(), bytes: countOutput })
+        .strict()
+    )
+  })
+  .strict()
 const backupSummaryOutput = workspaceResultOutput({
   count: countOutput,
   total_bytes: countOutput,
@@ -385,6 +413,32 @@ export const registerClaudeDesktopTools = (server: McpServer, cfg: Config): void
   )
 
   register(
+    'claude_desktop_sessions_prune',
+    {
+      title: 'Claude Desktop Cleanup: prune obsolete sessions',
+      description:
+        'Preview by default, or remove every selected old local_*.json session and its matching sidecar directory in one explicit workspace. Rechecks age and path identity before each removal; reports partial progress.',
+      inputSchema: z
+        .object({
+          older_than_days: z.number().int().min(0).max(36500).default(30),
+          dry_run: z.boolean().default(true),
+          workspace: workspaceArg
+        })
+        .strict(),
+      outputSchema: sessionsPruneOutput,
+      annotations: DESTRUCTIVE_ONESHOT
+    },
+    async ({ workspace, ...args }) => {
+      try {
+        const target = await requireSingleWorkspace(rootPath, workspace)
+        return jsonResult({ workspace: target.id, ...(await cleanup.sessionsPrune(target.root, args)) })
+      } catch (err) {
+        return errorResult('pruning Claude Desktop sessions', err)
+      }
+    }
+  )
+
+  register(
     'claude_desktop_artifacts_health',
     {
       title: 'Claude Desktop Auditor: artifact health',
@@ -428,6 +482,32 @@ export const registerClaudeDesktopTools = (server: McpServer, cfg: Config): void
         return jsonResult(await aggregate(rootPath, workspace, (root) => audit.obsoleteOutputs(root, args)))
       } catch (err) {
         return errorResult('finding obsolete Claude Desktop outputs', err)
+      }
+    }
+  )
+
+  register(
+    'claude_desktop_outputs_prune',
+    {
+      title: 'Claude Desktop Cleanup: prune obsolete outputs and uploads',
+      description:
+        'Preview by default, or remove direct regular files in outputs/ and uploads/ of obsolete local_* sessions in one explicit workspace. Session metadata, directories, and nested files remain.',
+      inputSchema: z
+        .object({
+          older_than_days: z.number().int().min(0).max(36500).default(14),
+          dry_run: z.boolean().default(true),
+          workspace: workspaceArg
+        })
+        .strict(),
+      outputSchema: outputsPruneOutput,
+      annotations: DESTRUCTIVE_ONESHOT
+    },
+    async ({ workspace, ...args }) => {
+      try {
+        const target = await requireSingleWorkspace(rootPath, workspace)
+        return jsonResult({ workspace: target.id, ...(await cleanup.outputsPrune(target.root, args)) })
+      } catch (err) {
+        return errorResult('pruning Claude Desktop outputs and uploads', err)
       }
     }
   )

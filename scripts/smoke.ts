@@ -45,8 +45,10 @@ const EXPECTED_TOOLS = [
   // claude-desktop
   'claude_desktop_storage_summary',
   'claude_desktop_sessions_obsolete',
+  'claude_desktop_sessions_prune',
   'claude_desktop_artifacts_health',
   'claude_desktop_outputs_obsolete',
+  'claude_desktop_outputs_prune',
   'claude_desktop_backups_summary',
   'claude_desktop_memory_spaces_summary',
   'claude_desktop_plugins_inventory',

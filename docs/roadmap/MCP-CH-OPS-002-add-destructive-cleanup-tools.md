@@ -4,12 +4,12 @@ area: OPS
 title: Add Claude cleanup tools
 theme: operations
 horizon: next
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: c205b0158ae0f5ee158c553ed195c345b0b01f11
 created_at: 2026-07-29T00:37:05Z
-updated_at: 2026-10-01T19:30:08Z
+updated_at: 2026-10-01T21:53:09Z
 ---
 
 ## Goal
@@ -30,12 +30,12 @@ Implementation belongs in `src/main/claude-desktop/audit.ts` and registration in
 
 ## Steps
 
-- [ ] Extract complete internal candidate selectors shared by audit, dry-run, and effect. Evaluate the same strict age comparison against one operation timestamp. A session candidate is a regular `local_*.json` older than cutoff plus its optional matching `local_*` directory. Output candidates are only direct regular files inside an obsolete session's `outputs/` and `uploads/`; retain the audit's directory-mtime fallback only when the JSON is genuinely absent.
-- [ ] Add session and output prune implementation functions with `{ older_than_days, dry_run }`. Session cleanup removes the exact selected JSON and matching contained directory; output cleanup removes only selected direct files and preserves session metadata, directories, and nested files. Reject or explicitly skip symlinked roots, session paths, subdirectories, and files, and apply lexical and realpath containment immediately before each effect.
-- [ ] Return complete preview/effect candidate lists, affected bytes, dry-run state, and skipped reasons. Recheck age, path identity, and containment before removal and skip a newly active, changed, or missing candidate. Describe any partial progress honestly if a later filesystem operation fails; do not claim transactionality.
-- [ ] Register `claude_desktop_sessions_prune` and `claude_desktop_outputs_prune` with `DESTRUCTIVE_ONESHOT`, strict input/output schemas, and `dry_run` defaulting to true. Use `requireSingleWorkspace()` rather than the audit aggregation wrapper.
-- [ ] Add isolated tests for exact cutoff, more than ten matching sessions, absent sidecar, JSON-absent output fallback, young-session retention, pattern exclusion, nested-file retention, default-preview byte preservation, path traversal/symlink escapes, changed-candidate revalidation, and explicit workspace selection when multiple workspaces exist.
-- [ ] Update schema/access tests, smoke inventory, affected committed generated client artifacts, README tool reference, and operator cleanup/safety guides. State plainly that output cleanup can delete uploads as well as generated outputs.
+- [x] Extract complete internal candidate selectors shared by audit, dry-run, and effect. Evaluate the same strict age comparison against one operation timestamp. A session candidate is a regular `local_*.json` older than cutoff plus its optional matching `local_*` directory. Output candidates are only direct regular files inside an obsolete session's `outputs/` and `uploads/`; retain the audit's directory-mtime fallback only when the JSON is genuinely absent.
+- [x] Add session and output prune implementation functions with `{ older_than_days, dry_run }`. Session cleanup removes the exact selected JSON and matching contained directory; output cleanup removes only selected direct files and preserves session metadata, directories, and nested files. Reject or explicitly skip symlinked roots, session paths, subdirectories, and files, and apply lexical and realpath containment immediately before each effect.
+- [x] Return complete preview/effect candidate lists, affected bytes, dry-run state, and skipped reasons. Recheck age, path identity, and containment before removal and skip a newly active, changed, or missing candidate. Describe any partial progress honestly if a later filesystem operation fails; do not claim transactionality.
+- [x] Register `claude_desktop_sessions_prune` and `claude_desktop_outputs_prune` with `DESTRUCTIVE_ONESHOT`, strict input/output schemas, and `dry_run` defaulting to true. Use `requireSingleWorkspace()` rather than the audit aggregation wrapper.
+- [x] Add isolated tests for exact cutoff, more than ten matching sessions, absent sidecar, JSON-absent output fallback, young-session retention, pattern exclusion, nested-file retention, default-preview byte preservation, path traversal/symlink escapes, changed-candidate revalidation, and explicit workspace selection when multiple workspaces exist.
+- [x] Update schema/access tests, smoke inventory, affected committed generated client artifacts, README tool reference, and operator cleanup/safety guides. State plainly that output cleanup can delete uploads as well as generated outputs.
 
 ## Files touched
 
@@ -66,6 +66,32 @@ Extend the operator cleanup and safety guides with the two preview/effect workfl
 ### Roadmap
 
 No separate follow-on is required to complete this bounded surface. Any later targeted deletion mode needs its own scoped record.
+
+## Review
+
+### Delivered
+
+Added the two age-scoped Claude Desktop cleanup tools from baseline `c205b0158ae0f5ee158c553ed195c345b0b01f11`. Session and output audit, preview, and effect now share complete candidate selectors.
+
+### Change Summary
+
+Both tools default to preview, require the existing destructive access tier for visibility, and resolve exactly one workspace. Effects revalidate age, file identity, tree state, and containment before removal. Session cleanup removes a selected JSON and its matching directory; output cleanup removes only direct selected output and upload files. Results report every candidate, candidate and affected bytes, skips, and partial progress. Schemas, client methods, smoke inventory, README, and operator guides are aligned.
+
+### Verification
+
+`bunx tsc --noEmit`, `bun run test`, `bun run test:coverage` (100% statements, branches, functions, and lines), `bun run ki:test:smoke` (44 tools), full `ki repo audit --repo .`, and focused `ki-work-roadmap`, `ki-guides`, `ki-authoring`, `ki-repo-mcp`, and `ki-engineering` audits passed. Tests exercised destructive effects only under temporary fixture roots. Access tests confirmed that both new tools are absent at read and write tiers and present at destructive.
+
+### Outstanding concerns
+
+External filesystem changes cannot be made atomic with recursive deletion. The tool checks identity and containment again just before each effect, skips changed candidates, and reports partial work if a later removal fails. No cleanup was run against live Claude data.
+
+### Post-change review
+
+The complete candidate set, including more than ten sessions, drives audit, preview, and effect. Exact-cutoff, young, unmatched, symlinked, escaping, and changed candidates survive; output cleanup leaves nested files and session metadata intact. The generated client received only the two new methods, preserving the existing interface shape.
+
+### Mini recap
+
+The scoped implementation and verification are complete in the local checkout. No Git remote was pushed. This item remains Awaiting review until owner acceptance of this packet.
 
 ## Discussion
 

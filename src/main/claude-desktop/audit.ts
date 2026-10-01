@@ -10,8 +10,7 @@ import {
   readJsonIfExists,
   resolveWithinRoot
 } from '../../utils/utils.js'
-
-const DAY_MS = 1000 * 60 * 60 * 24
+import { DAY_MS, selectArtifactSessions, selectObsoleteSessions } from './selection.js'
 
 /* ==================== Check 1: storage summary ==================== */
 
@@ -66,33 +65,13 @@ export const listObsolete = async (
   args: { older_than_days: number; flag_count: number; flag_size_mb: number }
 ) => {
   const cutoff = Date.now() - args.older_than_days * DAY_MS
-  const entries = await fs.readdir(workspaceRoot, { withFileTypes: true })
-  const sessionJsons = entries.filter((e) => e.isFile() && /^local_.*\.json$/.test(e.name)).map((e) => e.name)
-
-  const obsolete: { name: string; mtime: number; dir_bytes: number; json_bytes: number }[] = []
-  for (const name of sessionJsons) {
-    const stat = await fs.stat(path.join(workspaceRoot, name))
-    if (stat.mtime.getTime() < cutoff) {
-      const dirName = name.replace(/\.json$/, '')
-      const dirBytes = (await pathExists(path.join(workspaceRoot, dirName)))
-        ? await duBytes(path.join(workspaceRoot, dirName))
-        : 0
-      obsolete.push({
-        name: dirName,
-        mtime: stat.mtime.getTime(),
-        dir_bytes: dirBytes,
-        json_bytes: stat.size
-      })
-    }
-  }
-
-  obsolete.sort((a, b) => a.mtime - b.mtime)
-  const totalBytes = obsolete.reduce((sum, o) => sum + o.dir_bytes + o.json_bytes, 0)
+  const { candidates: obsolete } = await selectObsoleteSessions(workspaceRoot, cutoff)
+  const totalBytes = obsolete.reduce((sum, o) => sum + o.dirBytes + o.jsonBytes, 0)
   const top10Oldest = obsolete.slice(0, 10).map((o) => ({
     name: o.name,
     last_activity: new Date(o.mtime).toISOString(),
     age_days: daysAgo(o.mtime),
-    bytes: o.dir_bytes + o.json_bytes
+    bytes: o.dirBytes + o.jsonBytes
   }))
 
   const flagSizeBytes = args.flag_size_mb * 1024 * 1024
@@ -251,75 +230,27 @@ export const artifactPrune = async (workspaceRoot: string, args: { keep: number;
 
 export const obsoleteOutputs = async (workspaceRoot: string, args: { older_than_days: number }) => {
   const cutoff = Date.now() - args.older_than_days * DAY_MS
-  const entries = await fs.readdir(workspaceRoot, { withFileTypes: true })
-  const sessionDirs = entries.filter((e) => e.isDirectory() && e.name.startsWith('local_')).map((e) => e.name)
-
-  const findings: {
-    session: string
-    session_age_days: number | null
-    obsolete: boolean
-    outputs: { name: string; bytes: number }[]
-    uploads: { name: string; bytes: number }[]
-  }[] = []
-
-  for (const name of sessionDirs) {
-    let sessionMtime: number | null = null
-    try {
-      const stat = await fs.stat(path.join(workspaceRoot, `${name}.json`))
-      sessionMtime = stat.mtime.getTime()
-    } catch {
-      // missing .json — fall back to dir mtime
-      try {
-        const stat = await fs.stat(path.join(workspaceRoot, name))
-        sessionMtime = stat.mtime.getTime()
-        /* v8 ignore start -- session dir was just listed by readdir; a stat failure here only happens if it's removed mid-call. */
-      } catch {
-        sessionMtime = null
-      }
-      /* v8 ignore stop */
-    }
-
-    const outputs = await listFilesWithSize(path.join(workspaceRoot, name, 'outputs'))
-    const uploads = await listFilesWithSize(path.join(workspaceRoot, name, 'uploads'))
-    if (outputs.length === 0 && uploads.length === 0) continue
-
-    /* v8 ignore next 2 -- sessionMtime is only null on a mid-call race (see its v8 ignore); the null branches are paired-defensive. */
-    const ageDays = sessionMtime !== null ? daysAgo(sessionMtime) : null
-    const obsolete = sessionMtime !== null && sessionMtime < cutoff
-    findings.push({
-      session: name,
-      session_age_days: ageDays,
-      obsolete,
-      outputs,
-      uploads
-    })
-  }
-
-  /* v8 ignore next -- session_age_days is only null when sessionMtime is null (see its v8 ignore); the ?? 0 fallback is paired-defensive. */
-  findings.sort((a, b) => (b.session_age_days ?? 0) - (a.session_age_days ?? 0))
+  const { sessions } = await selectArtifactSessions(workspaceRoot)
+  const findings = sessions
+    .filter((session) => session.files.length > 0)
+    .map((session) => ({
+      session: session.name,
+      session_age_days: daysAgo(session.mtime),
+      obsolete: Number.isFinite(session.mtime) && session.mtime < cutoff,
+      outputs: session.files
+        .filter((file) => file.area === 'outputs')
+        .map((file) => ({ name: file.name, bytes: file.bytes })),
+      uploads: session.files
+        .filter((file) => file.area === 'uploads')
+        .map((file) => ({ name: file.name, bytes: file.bytes }))
+    }))
+  findings.sort((a, b) => b.session_age_days - a.session_age_days)
   return {
     older_than_days: args.older_than_days,
     sessions_with_artifacts: findings.length,
-    obsolete_count: findings.filter((f) => f.obsolete).length,
+    obsolete_count: findings.filter((finding) => finding.obsolete).length,
     findings
   }
-}
-
-const listFilesWithSize = async (dir: string): Promise<{ name: string; bytes: number }[]> => {
-  let entries: Dirent[]
-  try {
-    entries = (await fs.readdir(dir, { withFileTypes: true })) as Dirent[]
-  } catch (err) {
-    if (isNodeError(err) && err.code === 'ENOENT') return []
-    throw err
-  }
-  const out: { name: string; bytes: number }[] = []
-  for (const e of entries) {
-    if (!e.isFile()) continue
-    const stat = await fs.stat(path.join(dir, e.name))
-    out.push({ name: e.name, bytes: stat.size })
-  }
-  return out
 }
 
 /* ==================== Check 6: backup file accumulation ==================== */

@@ -4,7 +4,8 @@ import * as path from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/server'
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
-import type { Config } from '../../config/index.js'
+import type { AccessLevel, Config } from '../../config/index.js'
+import { makeAccessGatedRegister } from '../../utils/access-level.js'
 import { memoryFileNameArg, registerClaudeDesktopTools, spaceIdArg } from './index.js'
 
 // These tool-layer schemas are defense-in-depth for inputs that become path
@@ -47,11 +48,11 @@ describe('memoryFileNameArg', () => {
 
 interface RegistrationCall {
   name: string
-  config: { outputSchema?: z.ZodType }
+  config: { inputSchema?: z.ZodType; outputSchema?: z.ZodType; annotations?: Record<string, unknown> }
   handler: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
 }
 
-const registerTools = (claudeDesktopRootPath: string): RegistrationCall[] => {
+const registerTools = (claudeDesktopRootPath: string, accessLevel?: AccessLevel): RegistrationCall[] => {
   const calls: RegistrationCall[] = []
   const server = {
     registerTool: (name: string, config: RegistrationCall['config'], handler: RegistrationCall['handler']) => {
@@ -62,16 +63,44 @@ const registerTools = (claudeDesktopRootPath: string): RegistrationCall[] => {
     claudeDesktopRootPath,
     housekeepingPath: path.join(claudeDesktopRootPath, 'housekeeping')
   } as Config
-  registerClaudeDesktopTools(server, cfg)
+  const registeredServer =
+    accessLevel === undefined
+      ? server
+      : ({
+          registerTool: makeAccessGatedRegister(server, accessLevel, {
+            mode: 'off',
+            path: '/dev/null',
+            maxBytes: 0,
+            keep: 0
+          })
+        } as McpServer)
+  registerClaudeDesktopTools(registeredServer, cfg)
   return calls
 }
 
 describe('Claude Desktop result contracts', () => {
+  it('hides both prune tools at read and write, then exposes them at destructive', () => {
+    for (const level of ['read', 'write', 'destructive'] as const) {
+      const names = registerTools('/tmp/claude-desktop-schema-test', level).map((call) => call.name)
+      for (const name of ['claude_desktop_sessions_prune', 'claude_desktop_outputs_prune']) {
+        expect(names.includes(name)).toBe(level === 'destructive')
+      }
+    }
+  })
+
   it('registers a strict output schema for every tool', () => {
     const calls = registerTools('/tmp/claude-desktop-schema-test')
 
-    expect(calls).toHaveLength(20)
+    expect(calls).toHaveLength(22)
     for (const call of calls) expect(call.config.outputSchema).toBeDefined()
+
+    expect(calls.map((call) => call.name)).toContain('claude_desktop_sessions_prune')
+    expect(calls.map((call) => call.name)).toContain('claude_desktop_outputs_prune')
+    for (const name of ['claude_desktop_sessions_prune', 'claude_desktop_outputs_prune']) {
+      const config = calls.find((call) => call.name === name)?.config
+      expect(config?.inputSchema?.parse({ older_than_days: 30 })).toMatchObject({ dry_run: true })
+      expect(config?.annotations).toMatchObject({ destructiveHint: true, idempotentHint: false })
+    }
 
     const workspaces = calls.find((call) => call.name === 'claude_desktop_workspaces_list')?.config.outputSchema
     const valid = {
@@ -128,6 +157,54 @@ describe('Claude Desktop result contracts', () => {
           }
         ]
       })
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('requires explicit workspace selection for either new prune tool when more than one exists', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-desktop-tools-'))
+    try {
+      for (const id of ['one', 'two']) {
+        const workspace = path.join(root, 'account', id)
+        await fs.mkdir(workspace, { recursive: true })
+        await fs.writeFile(path.join(workspace, '.claude.json'), '{}')
+        await fs.writeFile(path.join(workspace, 'local_old.json'), '{}')
+      }
+      const calls = registerTools(root)
+      for (const name of ['claude_desktop_sessions_prune', 'claude_desktop_outputs_prune']) {
+        const registration = calls.find((call) => call.name === name)
+        const rejected = await registration?.handler({ older_than_days: 30, dry_run: false })
+        expect(rejected).toMatchObject({ isError: true })
+        expect(rejected?.content).toEqual(
+          expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining('specify "workspace"') })])
+        )
+        expect(await fs.readFile(path.join(root, 'account', 'one', 'local_old.json'), 'utf8')).toBe('{}')
+      }
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('returns schema-valid non-mutating previews for an explicitly chosen workspace', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-desktop-tools-'))
+    try {
+      const workspace = path.join(root, 'account', 'one')
+      await fs.mkdir(workspace, { recursive: true })
+      await fs.writeFile(path.join(workspace, '.claude.json'), '{}')
+      const json = path.join(workspace, 'local_old.json')
+      await fs.writeFile(json, '{}')
+      const aged = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+      await fs.utimes(json, aged, aged)
+      const calls = registerTools(root)
+      for (const name of ['claude_desktop_sessions_prune', 'claude_desktop_outputs_prune']) {
+        const registration = calls.find((call) => call.name === name)
+        const args = registration?.config.inputSchema?.parse({ older_than_days: 30, workspace: 'account/one' })
+        const result = await registration?.handler(args as Record<string, unknown>)
+        expect(result).toMatchObject({ structuredContent: { workspace: 'account/one', dry_run: true, removed: [] } })
+        expect(registration?.config.outputSchema?.safeParse(result?.structuredContent).success).toBe(true)
+      }
+      expect(await fs.readFile(json, 'utf8')).toBe('{}')
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }

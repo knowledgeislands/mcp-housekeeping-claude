@@ -53,7 +53,7 @@ To register the server with a different client, keep the same three things and a
 
 ## Verify the installation
 
-After the restart, the client's tool list should contain `claude_desktop_*`, `claude_code_*`, and `vscode_*` tools. At the default `read` access level that is twenty-seven read-only tools; the fifteen deleting tools are deliberately not registered until you ask for them, as [Configuration](configuration.md) describes.
+After the restart, the client's tool list should contain `claude_desktop_*`, `claude_code_*`, and `vscode_*` tools. At the default `read` access level that is twenty-seven read-only tools; the seventeen deleting tools are deliberately not registered until you ask for them, as [Configuration](configuration.md) describes.
 
 Ask for something harmless to confirm the round trip:
 

@@ -29,6 +29,9 @@ export interface KitMcpClaudeHousekeepingTools {
    */
   claude_desktop_sessions_obsolete(older_than_days?: number, flag_count?: number, flag_size_mb?: number, workspace?: string): Promise<CallResult>;
 
+  /** Preview or prune all aged local_*.json sessions and matching sidecars in one workspace. */
+  claude_desktop_sessions_prune(params?: { older_than_days?: number; dry_run?: boolean; workspace?: string }): Promise<CallResult>;
+
   /**
    * Audit check 3. Read each workspace's artifacts.json and report each artifact's name, starred status,
    * version count, last-updated date and MCP tools used. Flag artifacts with >flag_versions versions
@@ -49,6 +52,9 @@ export interface KitMcpClaudeHousekeepingTools {
    *                   all.
    */
   claude_desktop_outputs_obsolete(older_than_days?: number, workspace?: string): Promise<CallResult>;
+
+  /** Preview or prune direct output and upload files of aged local_* sessions in one workspace. */
+  claude_desktop_outputs_prune(params?: { older_than_days?: number; dry_run?: boolean; workspace?: string }): Promise<CallResult>;
 
   /**
    * Audit check 6. Find all .claude.json.backup.* files in each workspace and its backups/ subdir, count

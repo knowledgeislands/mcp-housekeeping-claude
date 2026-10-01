@@ -4,7 +4,7 @@ Read this before the first deletion. This server removes files from directories 
 
 ## Two independent layers
 
-**The access-level gate decides which tools exist.** At boot, each tool's level is derived from its MCP annotations — `readOnlyHint: true` means `read`, `destructiveHint: true` means `destructive`, and a tool with missing or partial annotations is treated as `destructive` rather than assumed harmless. A tool is registered only when its derived level is at or below `MCP_HOUSEKEEPING_CLAUDE_ACCESS_LEVEL`, which defaults to `read`. At that default the fifteen deleting and overwriting tools are not merely refused, they are absent: the model cannot see them, name them, or call them.
+**The access-level gate decides which tools exist.** At boot, each tool's level is derived from its MCP annotations — `readOnlyHint: true` means `read`, `destructiveHint: true` means `destructive`, and a tool with missing or partial annotations is treated as `destructive` rather than assumed harmless. A tool is registered only when its derived level is at or below `MCP_HOUSEKEEPING_CLAUDE_ACCESS_LEVEL`, which defaults to `read`. At that default the seventeen deleting and overwriting tools are not merely refused, they are absent: the model cannot see them, name them, or call them.
 
 **The `dry_run` default decides whether a visible tool acts.** Every deleting tool takes `dry_run`, defaulting to `true`. A first call previews: it returns the exact list of what would be removed and the space that would be freed, and changes nothing. Only `dry_run: false` deletes.
 
@@ -38,6 +38,7 @@ These are refusals in code, not conventions:
 - **Unverifiable projects are always skipped.** `include_with_memory=true` cannot turn unknown source evidence into a deletion candidate.
 - **Verified orphaned projects holding memory are skipped by default.** `claude_code_orphan_projects_prune` will not delete one containing a `memory/` subdirectory unless you pass `include_with_memory=true`, because memory is the most expensive thing in that tree to lose by accident.
 - **Batch deletions match a declared pattern, never an arbitrary name.** Report clearing matches `cowork-audit-*.md`; Claude Code session pruning matches `*.jsonl` plus its `<uuid>/` sidecar; VSCode session pruning matches `*.json` and `*.jsonl`. No tool deletes a file simply because it was named in a request.
+- **Claude Desktop cleanup is age-scoped to one workspace.** Session pruning selects old regular `local_*.json` files and their matching direct sidecars; output pruning selects only direct regular files in obsolete sessions' `outputs/` and `uploads/`. Symlinks, unsupported entries, changed candidates, and newly active sessions are skipped. A preview and effect are separate observations, and a later failure can leave partial progress that the result reports.
 - **The three inspected roots are not configurable.** They are computed from your home directory, so no environment variable can aim the deleting tools somewhere else. The only path you choose is the report directory.
 
 ## What is irreversible
@@ -45,6 +46,7 @@ These are refusals in code, not conventions:
 Deletion is `fs.unlink` and `fs.rm`. Files do not go to the Trash and there is no undo inside the server. Specifically:
 
 - A pruned Claude Code session takes its `<uuid>.jsonl` transcript and its sidecar directory with it. `/resume` will no longer find that conversation.
+- A pruned Claude Desktop session takes its `local_*.json` record and matching sidecar directory, including nested contents. Output pruning deletes direct files in both `outputs/` and `uploads/`, but leaves metadata, directories, and nested files.
 - A pruned artifact is removed from `artifacts.json` **and** its `artifacts/cache_<id>.json` file is deleted.
 - `vscode_workspace_delete` removes an entire `workspaceStorage/<id>/` subtree, which holds more than chat sessions — it is the workspace's whole storage entry.
 - A cleared report is gone; `claude_desktop_reports_clear` deletes every `cowork-audit-*.md` in the report directory, not only yesterday's.

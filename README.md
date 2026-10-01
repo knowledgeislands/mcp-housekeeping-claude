@@ -16,7 +16,7 @@ Practical instructions live in [`docs/guides/`](./docs/guides/README.md), groupe
 
 ## Features
 
-- **Codified audits across three storage areas** — 42 tools spanning Cowork local-agent-mode-sessions (the daily `cowork-filesystem-audit`), `~/.claude/` Claude Code state, and VSCode `workspaceStorage/<id>/chatSessions/`.
+- **Codified audits across three storage areas** — 44 tools spanning Cowork local-agent-mode-sessions (the daily `cowork-filesystem-audit`), `~/.claude/` Claude Code state, and VSCode `workspaceStorage/<id>/chatSessions/`.
 - **Access-level gated tools** — every tool maps to one of `read`, `write`, or `destructive`. Set `MCP_HOUSEKEEPING_CLAUDE_ACCESS_LEVEL` to the maximum level you want exposed; defaults to `read` only. Levels nest. The level is derived from each tool's MCP annotations (`readOnlyHint` / `destructiveHint`), not its name. (Housekeeping ships only `read` and `destructive` tools today — no `write` tier.)
 - **Workspace auto-discovery** (Cowork only) — walks `~/Library/Application Support/Claude/local-agent-mode-sessions/<account>/<workspace>/` and aggregates results across every discovered workspace.
 - **Path-safe** — every path is validated against its configured root; memory operations are also confined to their `memory/` subdir.
@@ -53,6 +53,8 @@ This table is the only hand-maintained inventory of the surface; the guides deli
 | Tool | Purpose |
 | --- | --- |
 | `claude_desktop_artifacts_prune` | Delete unstarred artifacts beyond top N (default 5) by `lastUpdated`. |
+| `claude_desktop_sessions_prune` | Preview or remove old `local_*.json` sessions and matching sidecar directories in one workspace. |
+| `claude_desktop_outputs_prune` | Preview or remove direct output and upload files of obsolete sessions; preserves metadata and nested files. |
 | `claude_desktop_reports_clear` | Delete every `cowork-audit-*.md` from `MCP_HOUSEKEEPING_CLAUDE_PATH`, with `dry_run`. |
 | `claude_desktop_report_write` | Save `cowork-audit-YYYY-MM-DD.md` to `MCP_HOUSEKEEPING_CLAUDE_PATH`. |
 | `claude_desktop_memory_write` | Create/overwrite a memory file in `spaces/<space_id>/memory/<name>.md`. |

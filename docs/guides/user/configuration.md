@@ -30,7 +30,7 @@ An invalid value for any typed variable aborts startup with a message naming the
 
 - **`read`** (the default) registers the twenty-seven read-only tools. The server cannot delete, rename, or write anything, because the tools that do so are not exposed to the model at all.
 - **`write`** is reserved for non-destructive mutations. No tool in this server occupies that tier today, so it currently registers exactly what `read` does.
-- **`destructive`** additionally registers the fifteen tools that delete, prune, rename, or overwrite — including report writing and memory writing.
+- **`destructive`** additionally registers the seventeen tools that delete, prune, rename, or overwrite — including report writing and memory writing.
 
 A tool's level is derived from its MCP annotations (`readOnlyHint` and `destructiveHint`), not from its name, and a tool with missing or partial annotations is treated as `destructive` rather than assumed safe. If you leave the level at `read`, no amount of prompting can make the server delete something: the capability is absent from the session.
 
