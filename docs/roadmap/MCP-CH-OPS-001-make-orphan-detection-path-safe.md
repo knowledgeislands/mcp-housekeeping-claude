@@ -4,12 +4,12 @@ area: OPS
 title: Harden orphan detection
 theme: operations
 horizon: next
-status: ready
+status: awaiting-review
 blocks: []
 blocked_by: []
-baseline_ref: null
+baseline_ref: e0fa4516adb94f8a488226c863e71ff88039663b
 created_at: 2026-07-29T00:37:05Z
-updated_at: 2026-10-01T19:27:46Z
+updated_at: 2026-10-01T20:29:01Z
 ---
 
 ## Goal
@@ -30,12 +30,12 @@ The implementation is in `src/main/claude-code/audit.ts`; `src/tools/claude-code
 
 ## Steps
 
-- [ ] Add a deterministic content-derived source resolver beside `discoverProjects()`. Inspect at most 32 recognised regular session files and at most 2 MiB total per project, with a 256 KiB per-file limit. Use bounded reads that detect growth/truncation and no unbounded `readFile`; reaching a limit before complete inspection makes the project unverifiable. Ignore blank lines, require parseable JSON objects, and accept only top-level string `cwd` fields. Every recognised session file must provide usable evidence; no evidence or conflicting evidence is unverifiable.
-- [ ] Validate each `cwd` as an absolute path without NUL or a `..` segment and require its encoded value to equal the project directory identifier. Require one consistent normalised path across the complete inspected set. Reject symlinked or escaping session inputs with the existing lexical and physical-root guards. A session cwd in a different directory is unverifiable; do not infer a repository ancestor.
-- [ ] Classify that path as `verified-present`, `verified-missing`, or `unverifiable`. Only `ENOENT` establishes missing; permissions and other I/O errors stay unverifiable. Preserve the decoded slug only as a display hint. Add `source_status`, nullable `source_path`, provenance, and a reason; retain `source_exists` as a nullable compatibility field (`true`, `false`, or `null`) so unknown does not masquerade as false.
-- [ ] Propagate the status through project listing and storage summary; count only verified-missing projects as orphans and report an unverifiable-project count. Restrict orphan pruning to verified-missing projects; report unknown and memory-protected projects as skipped with reasons. Before each non-preview removal, repeat source verification and physical target containment and skip changed evidence or a newly present source.
-- [ ] Add isolated fixtures for dot/dash collisions, missing or conflicting cwd, different-directory cwd, invalid paths, malformed JSON, unreadable or symlinked input, byte/file limits, source permission failure, genuinely missing sources, and evidence/source changes between selection and removal. Verify that `include_with_memory: true` never overrides an unverifiable result.
-- [ ] Update strict output schemas and schema tests, tool descriptions, committed generated client types as affected, the README tool reference, and operator cleanup/safety guidance. Run the project verification gates against fixtures only.
+- [x] Add a deterministic content-derived source resolver beside `discoverProjects()`. Inspect at most 32 recognised regular session files and at most 2 MiB total per project, with a 256 KiB per-file limit. Use bounded reads that detect growth/truncation and no unbounded `readFile`; reaching a limit before complete inspection makes the project unverifiable. Ignore blank lines, require parseable JSON objects, and accept only top-level string `cwd` fields. Every recognised session file must provide usable evidence; no evidence or conflicting evidence is unverifiable.
+- [x] Validate each `cwd` as an absolute path without NUL or a `..` segment and require its encoded value to equal the project directory identifier. Require one consistent normalised path across the complete inspected set. Reject symlinked or escaping session inputs with the existing lexical and physical-root guards. A session cwd in a different directory is unverifiable; do not infer a repository ancestor.
+- [x] Classify that path as `verified-present`, `verified-missing`, or `unverifiable`. Only `ENOENT` establishes missing; permissions and other I/O errors stay unverifiable. Preserve the decoded slug only as a display hint. Add `source_status`, nullable `source_path`, provenance, and a reason; retain `source_exists` as a nullable compatibility field (`true`, `false`, or `null`) so unknown does not masquerade as false.
+- [x] Propagate the status through project listing and storage summary; count only verified-missing projects as orphans and report an unverifiable-project count. Restrict orphan pruning to verified-missing projects; report unknown and memory-protected projects as skipped with reasons. Before each non-preview removal, repeat source verification and physical target containment and skip changed evidence or a newly present source.
+- [x] Add isolated fixtures for dot/dash collisions, missing or conflicting cwd, different-directory cwd, invalid paths, malformed JSON, unreadable or symlinked input, byte/file limits, source permission failure, genuinely missing sources, and evidence/source changes between selection and removal. Verify that `include_with_memory: true` never overrides an unverifiable result.
+- [x] Update strict output schemas and schema tests, tool descriptions, committed generated client types as affected, the README tool reference, and operator cleanup/safety guidance. Run the project verification gates against fixtures only.
 
 ## Files touched
 
@@ -66,6 +66,32 @@ Replace the slug-based orphan definition in the operator cleanup guide. Explain 
 ### Roadmap
 
 No new work is required for safe completion. Broader historical session-format support or performance optimisation can be captured independently if fixtures establish a real need.
+
+## Review
+
+### Delivered
+
+Hardened Claude Code orphan detection at baseline `e0fa4516adb94f8a488226c863e71ff88039663b`. Cleanup now requires one complete, bounded, consistent session-derived source path and a verified missing source before selecting a project for deletion.
+
+### Change Summary
+
+Added three-state source evidence, nullable compatibility output, explicit uncertainty counts and skip reasons, bounded no-follow session reads, and source/target revalidation before effects. Added isolated regression fixtures, output schema checks, client descriptions, and operator guidance. Aligned the existing Biome schema URL with its pinned `2.5.14` dependency so the required repository audit can pass.
+
+### Verification
+
+`bun run test` passed 327 tests. `bun run test:coverage` passed with 100% statements, branches, functions, and lines. `bunx tsc --noEmit`, `bun run ki:test:smoke`, and full `ki repo audit --repo .` passed (20 skills). All test roots were temporary fixtures.
+
+### Outstanding concerns
+
+Concurrent external filesystem changes cannot be made transactional with project deletion. The implementation repeats source verification and target containment immediately before removal and skips changed evidence; the race limitation remains as planned. Historical session formats without top-level `cwd` are conservatively unverifiable.
+
+### Post-change review
+
+The original dot/dash collision can no longer authorize deletion, and unknown evidence is never treated as missing. The tests cover a present punctuation-containing source, malformed and ambiguous inputs, size limits, symlinks, a genuine missing source, memory protection, and a source appearing after preview. Ready for owner acceptance of this exact candidate.
+
+### Mini recap
+
+The approved safety repair and required documentation are delivered and verified. No live Claude state was read or changed, and no remote Git ref was pushed. The item remains Awaiting review until explicit acceptance.
 
 ## Discussion
 

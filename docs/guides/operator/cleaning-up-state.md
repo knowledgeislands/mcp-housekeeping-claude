@@ -24,11 +24,11 @@ Decide what you are trying to achieve before you start. "Free 5 GB" and "retire 
 
 ## Retire orphaned Claude Code projects
 
-An orphan is a project directory whose decoded source path no longer exists on disk. It is worth distinguishing two causes before deleting anything.
+An orphan is a project whose complete bounded session evidence names one source path and verifies that it is missing. Directory-name decoding is only a display hint: punctuation makes it ambiguous. A project with missing, conflicting, unreadable, or over-budget evidence is `unverifiable` and stays intact.
 
-**Audit.** `claude_code_projects_list` returns the decoded source path and a `source_exists` flag for every project. If the source was **renamed or moved**, the fix is `claude_code_project_relocate`, which renames the project directory to match the new path so that `/resume` keeps finding its history — that is a rename, not a deletion, and it refuses a destination that already exists or a `new_path` that does not resolve. If the source was genuinely **deleted**, the project is disposable.
+**Audit.** `claude_code_projects_list` returns `source_status`, the verified `source_path` where available, provenance counts, and a reason for an unverifiable result. The compatibility field `source_exists` is `null` for unknown, `true` for verified present, and `false` only for verified missing. `claude_code_storage_summary` counts verified orphans and unverifiable projects separately. If the source was **renamed or moved**, consider `claude_code_project_relocate`, which renames the project directory to match the new path so that `/resume` keeps finding its history; it refuses a destination that already exists or does not resolve. If the source was genuinely **deleted** and the evidence is complete, it is eligible for pruning.
 
-**Preview.** `claude_code_orphan_projects_prune` with `dry_run` at its default lists the project directories it would remove. By default it skips any orphan containing a `memory/` subdirectory; `include_with_memory: true` includes them, and that is the flag to think hardest about.
+**Preview.** `claude_code_orphan_projects_prune` with `dry_run` at its default lists verified-missing candidates and explains skips. It inspects at most 32 recognised session files per project, 256 KiB per file, and 2 MiB in total; incomplete evidence keeps the project. By default it skips an orphan containing a `memory/` subdirectory. `include_with_memory: true` includes verified orphans with memory but never overrides an unverifiable source. Read every candidate and skip reason before enabling effects.
 
 **Act.** `dry_run: false`.
 

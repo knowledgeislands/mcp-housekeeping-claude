@@ -28,13 +28,15 @@ These are refusals in code, not conventions:
 - **An identifier that does not match its schema.** Anything becoming a path segment is constrained by a regex that excludes `/`, `\`, and `..` before it reaches the filesystem; memory names must end `.md`, and a Claude Code session must be `<uuid>.jsonl`. Schemas are strict, so an unrecognised argument is an error rather than a silently ignored one.
 - **Deleting `MEMORY.md` through `memory_delete`.** Both groups refuse it by name: `Cannot delete MEMORY.md via memory_delete`. Replacing its contents is a deliberate, differently named operation.
 - **An ambiguous workspace.** Where more than one Cowork workspace is discovered, a tool that acts on one requires you to name it rather than choosing.
+- **An unverified Claude Code source.** Project deletion requires complete, bounded session evidence naming one source path and an `ENOENT` result for that path. A lossy decoded project name, missing `cwd`, unreadable or conflicting sessions, and an exceeded read budget cannot prove absence. The tool rechecks source evidence and target containment before a non-preview removal.
 - **A relocation that would collide or point nowhere.** `claude_code_project_relocate` rejects a destination whose encoded name already exists, and a `new_path` that does not resolve on disk.
 - **An unrecognised configuration value.** An invalid access level or audit-log setting aborts startup instead of falling back to a default.
 
 ## What the server preserves
 
 - **Starred artifacts are never pruned**, and `claude_desktop_artifacts_prune` always keeps the top N most recently updated (default five) regardless of star status.
-- **Orphaned projects holding memory are skipped.** `claude_code_orphan_projects_prune` will not delete an orphan containing a `memory/` subdirectory unless you pass `include_with_memory=true`, because memory is the most expensive thing in that tree to lose by accident.
+- **Unverifiable projects are always skipped.** `include_with_memory=true` cannot turn unknown source evidence into a deletion candidate.
+- **Verified orphaned projects holding memory are skipped by default.** `claude_code_orphan_projects_prune` will not delete one containing a `memory/` subdirectory unless you pass `include_with_memory=true`, because memory is the most expensive thing in that tree to lose by accident.
 - **Batch deletions match a declared pattern, never an arbitrary name.** Report clearing matches `cowork-audit-*.md`; Claude Code session pruning matches `*.jsonl` plus its `<uuid>/` sidecar; VSCode session pruning matches `*.json` and `*.jsonl`. No tool deletes a file simply because it was named in a request.
 - **The three inspected roots are not configurable.** They are computed from your home directory, so no environment variable can aim the deleting tools somewhere else. The only path you choose is the report directory.
 

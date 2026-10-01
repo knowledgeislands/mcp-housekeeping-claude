@@ -8,7 +8,7 @@ Three areas, each with its own tool prefix and its own idea of what "a session" 
 
 **Claude Desktop and Cowork** (`claude_desktop_*`) covers the local agent-mode sessions tree: sessions with their `outputs/` and `uploads/`, artifacts and their cache files, memory spaces, installed plugins, the project cache, the debug directory, `.claude.json` backups, and the audit reports this server itself writes. It is the only area organised into [workspaces](configuration.md#understand-cowork-workspaces), so its results come back as a `workspaces` array.
 
-**Claude Code** (`claude_code_*`) covers `~/.claude`: one directory per project holding `<uuid>.jsonl` session transcripts and optional sidecar directories, per-project `memory/`, and the global state — `history.jsonl`, `settings.cleanupPeriodDays`, and `.last-cleanup`. Because a project directory encodes the source path it was opened from, the server can tell you which projects are **orphans**: directories whose source path no longer exists on disk.
+**Claude Code** (`claude_code_*`) covers `~/.claude`: one directory per project holding `<uuid>.jsonl` session transcripts and optional sidecar directories, per-project `memory/`, and the global state — `history.jsonl`, `settings.cleanupPeriodDays`, and `.last-cleanup`. Session records can identify projects whose source path is verified missing. When that evidence is incomplete, the project is reported as unverifiable and is kept.
 
 **VSCode** (`vscode_*`) covers `~/Library/Application Support/Code/User/workspaceStorage`: one entry per workspace, each holding `chatSessions/` with `.json` or `.jsonl` chat transcripts.
 
@@ -24,7 +24,7 @@ From there the questions get specific:
 
 > "Which Claude Code projects are taking the most space, and are any of them orphans?"
 
-`claude_code_projects_list` returns every project with its session count, size on disk, decoded source path, and a `source_exists` flag, sorted by size. This is the question to ask before any cleanup, because it distinguishes a project you renamed (which wants relocating) from one you deleted (which wants pruning).
+`claude_code_projects_list` returns every project with its session count, size on disk, `source_status`, verified path where available, and evidence reason, sorted by size. `source_exists` is nullable: unknown is not missing. The decoded name is a display hint, so use the verified path and preview when deciding whether a renamed project needs relocation or a verified orphan is eligible for pruning.
 
 > "What is older than ninety days across all three areas?"
 

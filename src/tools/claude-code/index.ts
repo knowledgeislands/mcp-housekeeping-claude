@@ -37,14 +37,18 @@ export const memoryFileNameArg = z
   )
   .refine((s) => !s.startsWith('-') && !s.includes('..'), 'Memory file name must not start with "-" or contain "..".')
 
-const ccProjectsListOutput = z.object({
+export const ccProjectsListOutput = z.object({
   projects_dir: z.string(),
   project_count: z.number(),
   projects: z.array(
     z.object({
       id: z.string(),
       decoded_path: z.string(),
-      source_exists: z.boolean(),
+      source_exists: z.boolean().nullable(),
+      source_status: z.enum(['verified-present', 'verified-missing', 'unverifiable']),
+      source_path: z.string().nullable(),
+      source_reason: z.string().nullable(),
+      source_provenance: z.object({ session_files_examined: z.number(), cwd_records: z.number() }),
       session_count: z.number(),
       has_memory: z.boolean(),
       bytes: z.number()
@@ -56,6 +60,7 @@ const ccStorageSummaryOutput = z.object({
   project_count: z.number(),
   session_count: z.number(),
   orphan_project_count: z.number(),
+  unverifiable_project_count: z.number(),
   total_bytes: z.number(),
   projects_bytes: z.number(),
   flags: z.array(z.string())
@@ -270,7 +275,7 @@ export const registerClaudeCodeTools = (server: McpServer, cfg: Config): void =>
     'claude_code_projects_list',
     {
       title: 'Claude Code Auditor: list projects',
-      description: `List every project under ~/.claude/projects/ with session-file count, on-disk size, whether a memory/ subdir exists, and a best-effort decode of the encoded directory name back to the original filesystem path (with source_exists indicating whether that decoded path still resolves on disk). Sorted by bytes descending.`,
+      description: `List Claude Code projects with session count, size, memory presence, and session-derived source_status. source_exists is null when bounded session evidence cannot verify the source; decoded_path is only a display hint. Sorted by bytes descending.`,
       inputSchema: z.object({}).strict(),
       outputSchema: ccProjectsListOutput,
       annotations: READ_ONLY
@@ -288,7 +293,7 @@ export const registerClaudeCodeTools = (server: McpServer, cfg: Config): void =>
     'claude_code_storage_summary',
     {
       title: 'Claude Code Auditor: storage summary',
-      description: `Aggregate stats across ~/.claude: total bytes, projects bytes, project count, session count, orphan-project count (projects whose decoded source path no longer exists). Flags large total size, high session count, or many orphans.`,
+      description: `Aggregate Claude storage and session counts. Count as orphans only projects whose session-derived source is verified missing; report unverifiable projects separately. Flags large total size, high session count, or many verified orphans.`,
       inputSchema: z
         .object({
           flag_size_gb: z.number().int().min(0).max(1_000_000).default(2),
@@ -482,7 +487,7 @@ export const registerClaudeCodeTools = (server: McpServer, cfg: Config): void =>
     'claude_code_orphan_projects_prune',
     {
       title: 'Claude Code Cleaner: prune orphan project subdirs',
-      description: `Delete project subdirs whose decoded source path no longer exists on disk. By default, skips orphans that contain a memory/ subdir (the most expensive thing to lose by accident); set include_with_memory=true to clear those too. dry_run defaults to TRUE — pass dry_run=false to actually delete. Run claude_code_projects_list first to confirm what's being targeted — and consider claude_code_project_relocate for any orphans that are really renames.`,
+      description: `Delete only project subdirs whose bounded session cwd evidence verifies a missing source. Unverifiable projects are always skipped, including with include_with_memory=true. By default, verified orphans with memory/ are also skipped. dry_run defaults to TRUE; inspect claude_code_projects_list and the preview before passing dry_run=false.`,
       inputSchema: z
         .object({
           dry_run: z.boolean().default(true).describe('Default true (preview only). Pass false to actually delete.'),

@@ -1,4 +1,4 @@
-import type { Dirent } from 'node:fs'
+import { type Dirent, constants as fsConstants } from 'node:fs'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import {
@@ -18,8 +18,8 @@ const DAY_MS = 1000 * 60 * 60 * 24
  * path. The encoding `s/\//-/g` (with `.` also rendered as `-`) is lossy, so
  * this is best-effort: `-Users-foo-dev-proj` → `/Users/foo/dev/proj`.
  *
- * Returns `{ decoded, exists }` where `exists` reflects an `fs.access` check —
- * useful for spotting projects whose source repo has moved or been deleted.
+ * Returns `{ decoded, exists }` for display and legacy callers only. Neither
+ * value establishes the source status used by orphan cleanup.
  */
 export const decodeProjectDir = async (encoded: string): Promise<{ decoded: string; exists: boolean }> => {
   const decoded = `/${encoded.replace(/^-+/, '').replace(/-/g, '/')}`
@@ -46,8 +46,12 @@ export interface ClaudeCodeProject {
   dir: string
   /** Best-effort decoded original filesystem path. */
   decoded_path: string
-  /** Whether the decoded path currently exists on disk. */
-  source_exists: boolean
+  /** A proven source state; unknown evidence must never authorize deletion. */
+  source_status: 'verified-present' | 'verified-missing' | 'unverifiable'
+  source_path: string | null
+  source_exists: boolean | null
+  source_reason: string | null
+  source_provenance: { session_files_examined: number; cwd_records: number }
   /** Names of `<uuid>.jsonl` session files in this project. */
   session_files: string[]
   /** Whether a `memory/` subdir exists. */
@@ -57,6 +61,168 @@ export interface ClaudeCodeProject {
 const isUuidJsonl = (name: string): boolean => /^[0-9a-f-]{36}\.jsonl$/i.test(name)
 
 const isUuid = (value: string): boolean => /^[0-9a-f-]{36}$/i.test(value)
+
+const MAX_SOURCE_SESSION_FILES = 32
+const MAX_SOURCE_FILE_BYTES = 256 * 1024
+const MAX_SOURCE_TOTAL_BYTES = 2 * 1024 * 1024
+
+type SourceEvidence = Pick<
+  ClaudeCodeProject,
+  'source_status' | 'source_path' | 'source_exists' | 'source_reason' | 'source_provenance'
+>
+
+const unverifiableSource = (reason: string, sessionFilesExamined: number, cwdRecords: number): SourceEvidence => ({
+  source_status: 'unverifiable',
+  source_path: null,
+  source_exists: null,
+  source_reason: reason,
+  source_provenance: { session_files_examined: sessionFilesExamined, cwd_records: cwdRecords }
+})
+
+/** Read at most one budgeted session file through a no-follow file descriptor. */
+const readSourceSession = async (claudeRoot: string, file: string): Promise<string | null> => {
+  try {
+    await assertRealPathWithinRoot(claudeRoot, file)
+    const handle = await fs.open(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW)
+    try {
+      const before = await handle.stat()
+      if (!before.isFile() || before.size > MAX_SOURCE_FILE_BYTES) return null
+      const buffer = Buffer.alloc(MAX_SOURCE_FILE_BYTES + 1)
+      let size = 0
+      while (size < buffer.length) {
+        const { bytesRead } = await handle.read(buffer, size, buffer.length - size, size)
+        if (bytesRead === 0) break
+        size += bytesRead
+      }
+      const after = await handle.stat()
+      /* v8 ignore start -- detecting a file changing between bounded read and stat requires a concurrent filesystem race. */
+      if (
+        size > MAX_SOURCE_FILE_BYTES ||
+        size !== before.size ||
+        after.size !== before.size ||
+        after.mtimeMs !== before.mtimeMs
+      )
+        return null
+      /* v8 ignore stop */
+      return buffer.toString('utf8', 0, size)
+    } finally {
+      await handle.close()
+    }
+    /* v8 ignore start -- open/read can fail after readdir when a file changes permissions or disappears mid-call. */
+  } catch {
+    return null
+  }
+  /* v8 ignore stop */
+}
+
+const sourceFromSessions = async (
+  claudeRoot: string,
+  projectDir: string,
+  projectId: string,
+  entries: Dirent[]
+): Promise<SourceEvidence> => {
+  const sessions = entries.filter((entry) => isUuidJsonl(entry.name)).sort((a, b) => a.name.localeCompare(b.name))
+  if (sessions.length === 0) return unverifiableSource('no_session_evidence', 0, 0)
+  if (sessions.length > MAX_SOURCE_SESSION_FILES) return unverifiableSource('session_file_limit', 0, 0)
+
+  let totalBytes = 0
+  let cwdRecords = 0
+  let sourcePath: string | null = null
+  let examined = 0
+  for (const session of sessions) {
+    if (!session.isFile()) return unverifiableSource('non_regular_session', examined, cwdRecords)
+    const file = resolveWithinRoot(projectDir, session.name)
+    const content = await readSourceSession(claudeRoot, file)
+    if (content === null) return unverifiableSource('unreadable_or_oversize_session', examined, cwdRecords)
+    totalBytes += Buffer.byteLength(content)
+    if (totalBytes > MAX_SOURCE_TOTAL_BYTES) return unverifiableSource('session_byte_limit', examined, cwdRecords)
+    examined += 1
+    let foundCwd = false
+    for (const line of content.split('\n')) {
+      if (!line.trim()) continue
+      let value: unknown
+      try {
+        value = JSON.parse(line)
+      } catch {
+        return unverifiableSource('invalid_session_json', examined, cwdRecords)
+      }
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        return unverifiableSource('invalid_session_json', examined, cwdRecords)
+      }
+      if (!Object.hasOwn(value, 'cwd')) continue
+      const cwd = (value as Record<string, unknown>).cwd
+      if (typeof cwd !== 'string' || !path.isAbsolute(cwd) || cwd.includes('\0') || cwd.split('/').includes('..')) {
+        return unverifiableSource('invalid_cwd', examined, cwdRecords)
+      }
+      const normalized = path.normalize(cwd)
+      if (encodeProjectPath(normalized) !== projectId)
+        return unverifiableSource('cwd_project_mismatch', examined, cwdRecords)
+      if (sourcePath !== null && sourcePath !== normalized)
+        return unverifiableSource('conflicting_cwd', examined, cwdRecords)
+      sourcePath = normalized
+      cwdRecords += 1
+      foundCwd = true
+    }
+    if (!foundCwd) return unverifiableSource('missing_cwd', examined, cwdRecords)
+  }
+
+  // Each inspected session must provide cwd, so at least one validated path exists here.
+  const verifiedPath = sourcePath as string
+  try {
+    await fs.stat(verifiedPath)
+    return {
+      source_status: 'verified-present',
+      source_path: verifiedPath,
+      source_exists: true,
+      source_reason: null,
+      source_provenance: { session_files_examined: examined, cwd_records: cwdRecords }
+    }
+  } catch (error) {
+    if (!isNodeError(error) || error.code !== 'ENOENT')
+      return unverifiableSource('source_stat_error', examined, cwdRecords)
+    try {
+      const link = await fs.lstat(verifiedPath)
+      /* v8 ignore next -- a non-symlink appearing between failed stat and lstat requires a concurrent filesystem race. */
+      if (link.isSymbolicLink()) return unverifiableSource('broken_source_symlink', examined, cwdRecords)
+      /* v8 ignore start -- a permission or unlink race between stat and lstat is not deterministic in fixtures. */
+    } catch (linkError) {
+      if (!isNodeError(linkError) || linkError.code !== 'ENOENT') {
+        return unverifiableSource('source_stat_error', examined, cwdRecords)
+      }
+    }
+    /* v8 ignore stop */
+    // ENOENT through a symlinked ancestor does not prove the recorded source
+    // disappeared: the link itself could be broken or retargeted.
+    for (
+      let ancestor = path.dirname(verifiedPath);
+      ancestor !== path.dirname(ancestor);
+      ancestor = path.dirname(ancestor)
+    ) {
+      try {
+        if ((await fs.lstat(ancestor)).isSymbolicLink()) {
+          try {
+            await fs.stat(ancestor)
+          } catch {
+            return unverifiableSource('source_symlink_ancestor', examined, cwdRecords)
+          }
+        }
+        /* v8 ignore start -- a traversable ancestor becomes inaccessible only through an external permission or path race. */
+      } catch (ancestorError) {
+        if (!isNodeError(ancestorError) || ancestorError.code !== 'ENOENT') {
+          return unverifiableSource('source_stat_error', examined, cwdRecords)
+        }
+      }
+      /* v8 ignore stop */
+    }
+    return {
+      source_status: 'verified-missing',
+      source_path: verifiedPath,
+      source_exists: false,
+      source_reason: null,
+      source_provenance: { session_files_examined: examined, cwd_records: cwdRecords }
+    }
+  }
+}
 
 export type AcquisitionSession = {
   id: string
@@ -216,12 +382,13 @@ export const discoverProjects = async (claudeRoot: string): Promise<ClaudeCodePr
     const inner = await fs.readdir(dir, { withFileTypes: true })
     const sessionFiles = inner.filter((i) => i.isFile() && isUuidJsonl(i.name)).map((i) => i.name)
     const hasMemory = inner.some((i) => i.isDirectory() && i.name === 'memory')
-    const { decoded, exists } = await decodeProjectDir(e.name)
+    const { decoded } = await decodeProjectDir(e.name)
+    const source = await sourceFromSessions(claudeRoot, dir, e.name, inner)
     projects.push({
       id: e.name,
       dir,
       decoded_path: decoded,
-      source_exists: exists,
+      ...source,
       session_files: sessionFiles,
       has_memory: hasMemory
     })
@@ -241,6 +408,10 @@ export const projectsList = async (claudeRoot: string) => {
         id: p.id,
         decoded_path: p.decoded_path,
         source_exists: p.source_exists,
+        source_status: p.source_status,
+        source_path: p.source_path,
+        source_reason: p.source_reason,
+        source_provenance: p.source_provenance,
         session_count: p.session_files.length,
         has_memory: p.has_memory,
         bytes
@@ -263,7 +434,8 @@ export const storageSummary = async (
 ) => {
   const projects = await discoverProjects(claudeRoot)
   const totalSessions = projects.reduce((sum, p) => sum + p.session_files.length, 0)
-  const orphanCount = projects.filter((p) => !p.source_exists).length
+  const orphanCount = projects.filter((p) => p.source_status === 'verified-missing').length
+  const unverifiableCount = projects.filter((p) => p.source_status === 'unverifiable').length
   const totalBytes = await duBytes(claudeRoot)
   const projectsBytes = await duBytes(path.join(claudeRoot, 'projects'))
 
@@ -278,6 +450,7 @@ export const storageSummary = async (
     project_count: projects.length,
     session_count: totalSessions,
     orphan_project_count: orphanCount,
+    unverifiable_project_count: unverifiableCount,
     total_bytes: totalBytes,
     projects_bytes: projectsBytes,
     flags
@@ -569,7 +742,7 @@ export const relocateProject = async (
 /* ==================== prune orphan projects ==================== */
 
 /**
- * Delete project subdirs whose decoded source path no longer exists on disk.
+ * Delete only project subdirs whose session-derived source is verified missing.
  * Skips projects with `has_memory: true` unless `include_with_memory` is set
  * (memory is the most expensive thing to lose by accident).
  */
@@ -578,16 +751,43 @@ export const pruneOrphanProjects = async (
   args: { dry_run: boolean; include_with_memory: boolean }
 ) => {
   const projects = await discoverProjects(claudeRoot)
-  const orphans = projects.filter((p) => !p.source_exists)
+  const orphans = projects.filter((p) => p.source_status === 'verified-missing')
   const targets = args.include_with_memory ? orphans : orphans.filter((p) => !p.has_memory)
-  const skipped = args.include_with_memory
-    ? []
-    : orphans.filter((p) => p.has_memory).map((p) => ({ id: p.id, decoded_path: p.decoded_path, reason: 'has_memory' }))
+  const skipped = projects
+    .filter((p) => p.source_status === 'unverifiable')
+    .map((p) => ({ id: p.id, decoded_path: p.decoded_path, reason: p.source_reason as string }))
+  if (!args.include_with_memory) {
+    skipped.push(
+      ...orphans
+        .filter((p) => p.has_memory)
+        .map((p) => ({ id: p.id, decoded_path: p.decoded_path, reason: 'has_memory' }))
+    )
+  }
 
   const deleted: { id: string; decoded_path: string; session_count: number; bytes: number }[] = []
   for (const p of targets) {
     const bytes = await duBytes(p.dir)
     if (!args.dry_run) {
+      const entry = await fs.lstat(p.dir)
+      /* v8 ignore start -- project directory can change only after discovery during this call. */
+      if (!entry.isDirectory()) {
+        skipped.push({ id: p.id, decoded_path: p.decoded_path, reason: 'changed_project_directory' })
+        continue
+      }
+      /* v8 ignore stop */
+      await assertRealPathWithinRoot(claudeRoot, p.dir)
+      const inner = await fs.readdir(p.dir, { withFileTypes: true })
+      const current = await sourceFromSessions(claudeRoot, p.dir, p.id, inner)
+      /* v8 ignore start -- session evidence or source can change only between discovery and effect in one call. */
+      if (current.source_status !== 'verified-missing' || current.source_path !== p.source_path) {
+        skipped.push({ id: p.id, decoded_path: p.decoded_path, reason: 'changed_source_evidence' })
+        continue
+      }
+      if (!args.include_with_memory && inner.some((entry) => entry.isDirectory() && entry.name === 'memory')) {
+        skipped.push({ id: p.id, decoded_path: p.decoded_path, reason: 'has_memory' })
+        continue
+      }
+      /* v8 ignore stop */
       await fs.rm(p.dir, { recursive: true, force: true })
     }
     deleted.push({ id: p.id, decoded_path: p.decoded_path, session_count: p.session_files.length, bytes })

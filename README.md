@@ -69,8 +69,8 @@ This table is the only hand-maintained inventory of the surface; the guides deli
 | `claude_code_sessions_discover` | Confirm the adapter can inspect one physical repository; reports its capabilities and session count. |
 | `claude_code_sessions_list` | Content-minimised provenance for the sessions whose encoded project dir matches one repository. |
 | `claude_code_sessions_checkpoint` | Content-minimised, provenance-preserving checkpoint for incremental KI acquisition; writes nothing. |
-| `claude_code_projects_list` | Projects with session counts, bytes, decoded source path, orphan flag. |
-| `claude_code_storage_summary` | Aggregate counts + flags; surfaces orphan-project totals. |
+| `claude_code_projects_list` | Projects with size, sessions, and session-verified source status; decoded path is a display hint. |
+| `claude_code_storage_summary` | Aggregate counts + flags; separates verified orphans from unverifiable projects. |
 | `claude_code_sessions_obsolete` | Sessions older than N days (with sidecar dir bytes). |
 | `claude_code_global_status` | `history.jsonl`, `settings.cleanupPeriodDays`, `.last-cleanup`, top-level dirs, freshness signal. |
 | `claude_code_session_read` | Preview head/tail of a session JSONL. |
@@ -83,7 +83,7 @@ This table is the only hand-maintained inventory of the surface; the guides deli
 | --- | --- |
 | `claude_code_sessions_prune` | Delete sessions older than N days (+ sidecar dirs), with `dry_run`. |
 | `claude_code_project_relocate` | Rename a project subdir to match a new source path (fixes `/resume` after a rename). |
-| `claude_code_orphan_projects_prune` | Delete project subdirs whose decoded source path no longer exists. |
+| `claude_code_orphan_projects_prune` | Preview or delete only projects whose bounded session evidence verifies a missing source. |
 | `claude_code_memory_write` | Create/overwrite a memory file. |
 | `claude_code_memory_delete` | Retire a memory file. |
 | `claude_code_memory_index_write` | Replace `MEMORY.md`. |

@@ -28,11 +28,12 @@ const setMtime = async (p: string, when: Date) => {
   await fs.utimes(p, when, when)
 }
 
-const writeSession = async (project: string, uuid: string, mtime: Date, payload = '{"role":"user","content":"hi"}') => {
+const writeSession = async (project: string, uuid: string, mtime: Date, payload?: string) => {
   const projectDir = path.join(CLAUDE_CODE_ROOT_PATH, 'projects', project)
   await fs.mkdir(projectDir, { recursive: true })
   const file = path.join(projectDir, `${uuid}.jsonl`)
-  await fs.writeFile(file, `${payload}\n`)
+  const defaultCwd = `/${project.replace(/^-+/, '').replace(/-/g, '/')}`
+  await fs.writeFile(file, `${payload ?? JSON.stringify({ cwd: defaultCwd, role: 'user', content: 'hi' })}\n`)
   await setMtime(file, mtime)
   return file
 }
@@ -603,6 +604,194 @@ describe('relocateProject', () => {
 })
 
 describe('pruneOrphanProjects', () => {
+  it('retains a present source whose dotted and dashed path cannot be decoded from the project id', async () => {
+    const source = path.join(CLAUDE_CODE_ROOT_PATH, 'present.a-b')
+    await fs.mkdir(source, { recursive: true })
+    const project = encodeProjectPath(source)
+    await writeSession(project, '11111111-1111-1111-1111-111111111111', new Date(), JSON.stringify({ cwd: source }))
+
+    const listed = await projectsList(CLAUDE_CODE_ROOT_PATH)
+    expect(listed.projects[0]).toMatchObject({
+      source_status: 'verified-present',
+      source_path: source,
+      source_exists: true,
+      source_provenance: { session_files_examined: 1, cwd_records: 1 }
+    })
+    expect(listed.projects[0]?.decoded_path).not.toBe(source)
+    const result = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: false, include_with_memory: true })
+    expect(result.deleted_count).toBe(0)
+    expect(await fs.stat(path.join(CLAUDE_CODE_ROOT_PATH, 'projects', project))).toBeDefined()
+  })
+
+  it('treats missing cwd, malformed JSON, conflicting cwd and symlinked sessions as unverifiable', async () => {
+    const missingCwd = '-Users-ghost-no-cwd'
+    await writeSession(missingCwd, '11111111-1111-1111-1111-111111111111', new Date(), '{"type":"user"}')
+    const invalidJson = '-Users-ghost-invalid-json'
+    await writeSession(invalidJson, '22222222-2222-2222-2222-222222222222', new Date(), '{broken')
+    const conflict = '-tmp-conflicting-a-b'
+    await writeSession(
+      conflict,
+      '33333333-3333-3333-3333-333333333333',
+      new Date(),
+      JSON.stringify({ cwd: '/tmp/conflicting-a/b' })
+    )
+    await writeSession(
+      conflict,
+      '44444444-4444-4444-4444-444444444444',
+      new Date(),
+      JSON.stringify({ cwd: '/tmp/conflicting/a-b' })
+    )
+    const symlink = '-Users-ghost-symlink'
+    const symlinkDir = path.join(CLAUDE_CODE_ROOT_PATH, 'projects', symlink)
+    await fs.mkdir(symlinkDir, { recursive: true })
+    await fs.symlink(
+      path.join(CLAUDE_CODE_ROOT_PATH, 'outside.jsonl'),
+      path.join(symlinkDir, '55555555-5555-5555-5555-555555555555.jsonl')
+    )
+
+    const result = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: false, include_with_memory: true })
+    expect(result.orphan_count).toBe(0)
+    expect(result.deleted_count).toBe(0)
+    expect(result.skipped.map((item) => item.reason).sort()).toEqual([
+      'conflicting_cwd',
+      'invalid_session_json',
+      'missing_cwd',
+      'non_regular_session'
+    ])
+    const summary = await storageSummary(CLAUDE_CODE_ROOT_PATH, {
+      flag_size_gb: 100,
+      flag_session_count: 100,
+      flag_orphan_count: 0
+    })
+    expect(summary.unverifiable_project_count).toBe(4)
+    expect(summary.orphan_project_count).toBe(0)
+  })
+
+  it('rejects too many and oversized session files instead of sampling for deletion', async () => {
+    const many = '-Users-ghost-many'
+    for (let i = 0; i < 33; i += 1) {
+      const uuid = `${i.toString(16).padStart(8, '0')}-1111-1111-1111-111111111111`
+      await writeSession(many, uuid, new Date())
+    }
+    const large = '-Users-ghost-large'
+    await writeSession(large, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', new Date(), 'a'.repeat(256 * 1024))
+
+    const result = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: false, include_with_memory: true })
+    expect(result.deleted_count).toBe(0)
+    expect(result.skipped.map((item) => item.reason).sort()).toEqual([
+      'session_file_limit',
+      'unreadable_or_oversize_session'
+    ])
+  })
+
+  it('rejects a cumulative evidence budget overrun', async () => {
+    const project = '-Users-ghost-total-budget'
+    const payload = JSON.stringify({ cwd: '/Users/ghost/total/budget', note: 'a'.repeat(240 * 1024) })
+    for (let i = 0; i < 9; i += 1) {
+      const uuid = `${i.toString(16).padStart(8, '0')}-aaaa-aaaa-aaaa-aaaaaaaaaaaa`
+      await writeSession(project, uuid, new Date(), payload)
+    }
+    const result = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: false, include_with_memory: true })
+    expect(result.deleted_count).toBe(0)
+    expect(result.skipped[0]?.reason).toBe('session_byte_limit')
+  })
+
+  it('keeps empty projects and sources with invalid or mismatched cwd evidence', async () => {
+    const empty = path.join(CLAUDE_CODE_ROOT_PATH, 'projects', '-Users-ghost-empty')
+    await fs.mkdir(empty, { recursive: true })
+    const cases = [
+      ['-Users-ghost-primitive', 'null', 'invalid_session_json'],
+      ['-Users-ghost-relative', JSON.stringify({ cwd: 'relative/path' }), 'invalid_cwd'],
+      ['-Users-ghost-parent', JSON.stringify({ cwd: '/Users/ghost/../parent' }), 'invalid_cwd'],
+      ['-Users-ghost-nul', JSON.stringify({ cwd: '/Users/ghost/nu\0l' }), 'invalid_cwd'],
+      ['-Users-ghost-wrong', JSON.stringify({ cwd: '/tmp/unrelated' }), 'cwd_project_mismatch']
+    ] as const
+    for (const [project, payload] of cases) {
+      await writeSession(project, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', new Date(), payload)
+    }
+    const result = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: false, include_with_memory: true })
+    expect(result.deleted_count).toBe(0)
+    expect(result.skipped.map((item) => item.reason).sort()).toEqual([
+      'cwd_project_mismatch',
+      'invalid_cwd',
+      'invalid_cwd',
+      'invalid_cwd',
+      'invalid_session_json',
+      'no_session_evidence'
+    ])
+  })
+
+  it('keeps broken symlinks and path loops rather than treating them as missing sources', async () => {
+    const broken = path.join(CLAUDE_CODE_ROOT_PATH, 'broken-source')
+    await fs.symlink(path.join(CLAUDE_CODE_ROOT_PATH, 'absent-target'), broken)
+    await writeSession(
+      encodeProjectPath(broken),
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      new Date(),
+      JSON.stringify({ cwd: broken })
+    )
+    const loop = path.join(CLAUDE_CODE_ROOT_PATH, 'loop-source')
+    await fs.symlink(loop, loop)
+    await writeSession(
+      encodeProjectPath(loop),
+      'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      new Date(),
+      JSON.stringify({ cwd: loop })
+    )
+    const result = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: false, include_with_memory: true })
+    expect(result.deleted_count).toBe(0)
+    expect(result.skipped.map((item) => item.reason).sort()).toEqual(['broken_source_symlink', 'source_stat_error'])
+  })
+
+  it('keeps a missing leaf below a symlinked ancestor', async () => {
+    const ancestor = path.join(CLAUDE_CODE_ROOT_PATH, 'linked-parent')
+    await fs.symlink(path.join(CLAUDE_CODE_ROOT_PATH, 'missing-parent'), ancestor)
+    const source = path.join(ancestor, 'project')
+    await writeSession(
+      encodeProjectPath(source),
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      new Date(),
+      JSON.stringify({ cwd: source })
+    )
+    const result = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: false, include_with_memory: true })
+    expect(result.deleted_count).toBe(0)
+    expect(result.skipped[0]?.reason).toBe('source_symlink_ancestor')
+  })
+
+  it('keeps a source whose parent cannot be inspected', async () => {
+    const parent = path.join(CLAUDE_CODE_ROOT_PATH, 'blocked-source')
+    await fs.mkdir(parent)
+    const source = path.join(parent, 'project')
+    await writeSession(
+      encodeProjectPath(source),
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      new Date(),
+      JSON.stringify({ cwd: source })
+    )
+    await fs.chmod(parent, 0o000)
+    try {
+      const result = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: false, include_with_memory: true })
+      expect(result.deleted_count).toBe(0)
+      expect(result.skipped[0]?.reason).toBe('source_stat_error')
+    } finally {
+      await fs.chmod(parent, 0o755)
+    }
+  })
+
+  it('does not treat an earlier preview as authority after the source appears', async () => {
+    const source = path.join(CLAUDE_CODE_ROOT_PATH, 'appearing-source')
+    const project = encodeProjectPath(source)
+    await writeSession(project, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', new Date(), JSON.stringify({ cwd: source }))
+    const projectDir = path.join(CLAUDE_CODE_ROOT_PATH, 'projects', project)
+    const preview = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: true, include_with_memory: true })
+    expect(preview.deleted_count).toBe(1)
+    await fs.mkdir(source, { recursive: true })
+
+    const result = await pruneOrphanProjects(CLAUDE_CODE_ROOT_PATH, { dry_run: false, include_with_memory: true })
+    expect(result.deleted_count).toBe(0)
+    expect(await fs.stat(projectDir)).toBeDefined()
+  })
+
   it('deletes orphan projects whose decoded path is missing', async () => {
     await writeSession('-Users-ghost-project-aaaaaaaa', '11111111-1111-1111-1111-111111111111', new Date())
     // A non-orphan: "/tmp" exists on every Unix and round-trips cleanly through encode/decode.

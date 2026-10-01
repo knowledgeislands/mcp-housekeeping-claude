@@ -135,17 +135,16 @@ export interface KitMcpClaudeHousekeepingTools {
   claude_desktop_reports_list(): Promise<CallResult>;
 
   /**
-   * List every project under ~/.claude/projects/ with session-file count, on-disk size, whether a
-   * memory/ subdir exists, and a best-effort decode of the encoded directory name back to the original
-   * filesystem path (with source_exists indicating whether that decoded path still resolves on disk).
-   * Sorted by bytes descending.
+   * List Claude Code projects with session count, size, memory presence, and session-derived source_status.
+   * source_exists is null when bounded session evidence cannot verify the source; decoded_path is only a
+   * display hint. Sorted by bytes descending.
    */
   claude_code_projects_list(): Promise<object>;
 
   /**
-   * Aggregate stats across ~/.claude: total bytes, projects bytes, project count, session count,
-   * orphan-project count (projects whose decoded source path no longer exists). Flags large total size,
-   * high session count, or many orphans.
+   * Aggregate Claude storage and session counts. Count as orphans only projects whose session-derived source
+   * is verified missing; report unverifiable projects separately. Flags large total size, high session
+   * count, or many verified orphans.
    */
   claude_code_storage_summary(flag_size_gb?: number, flag_session_count?: number, flag_orphan_count?: number): Promise<object>;
 
@@ -219,4 +218,3 @@ export interface KitMcpClaudeHousekeepingTools {
    */
   vscode_session_read(workspace: string, session: string, max_lines?: number, tail?: boolean): Promise<object>;
 }
-
