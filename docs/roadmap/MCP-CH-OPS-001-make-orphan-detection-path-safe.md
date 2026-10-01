@@ -4,105 +4,79 @@ area: OPS
 title: Harden orphan detection
 theme: operations
 horizon: next
-status: draft
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-07-29T00:37:05Z
-updated_at: 2026-08-18T13:19:35Z
+updated_at: 2026-10-01T19:27:46Z
 ---
 
 ## Goal
 
-Achieve the stated outcome: Make orphan detection path-safe.
+Existing project history survives orphan cleanup whenever its source cannot be verified as missing. Projects whose source paths contain punctuation are never classified for deletion by guessing from the project-directory name.
 
 ## Context
 
-Resolve the true project path from the `cwd` field in session `.jsonl` files rather than by decoding the ambiguous Claude project-directory slug.
+`discoverProjects()` still derives `source_exists` through `decodeProjectDir()`, and `pruneOrphanProjects()` recursively deletes every project with a false result unless memory protection applies. Slash, dot, and literal dash collide in the directory encoding, so even a present source can be reported missing. `projectsList()` and `storageSummary()` repeat that classification. No current fixture proves safety for these collisions.
 
 ## Boundary
 
-If no readable `cwd` is available, treat the project as unverifiable and skip it; never delete it.
+Change only Claude Code source classification and its orphan-prune consumers. Preserve the destructive access gate, default preview, and memory opt-in. Never mutate source repositories or read real user session roots in tests. Missing, ambiguous, invalid, unreadable, or over-budget evidence means unverifiable and cannot authorize deletion. Session format coverage may remain conservative; safety does not depend on establishing that every historical Claude version emitted `cwd`.
 
 ## Current state
 
-Orphan status is derived entirely from the directory name. `decodeProjectDir()` in [src/main/claude-code/audit.ts](../../src/main/claude-code/audit.ts) reverses the slug with `/${encoded.replace(/^-+/, '').replace(/-/g, '/')}` and sets `source_exists` from a `pathExists()` check on the result.
-
-That decode cannot be correct, because the forward encoding is lossy. `encodeProjectPath()` in the same file maps both `/` and `.` to `-` (`absolutePath.replace(/[/.]/g, '-')`), and a literal `-` already present in a path survives unchanged. So `/Users/foo/my-repo`, `/Users/foo/my.repo` and `/Users/foo/my/repo` all encode to the same slug, and the decode picks exactly one of them. Any project whose real path contains `.` or `-` decodes to a path that does not exist and is therefore reported as an orphan while its source is still on disk.
-
-`discoverProjects()` is the single producer of `source_exists`, and three consumers act on it: `projectsList()` surfaces it per project, `storageSummary()` counts it into `orphan_project_count` and the `orphan_projects_exceed_*` flag, and `pruneOrphanProjects()` calls `fs.rm(p.dir, { recursive: true, force: true })` on every project with `!source_exists`. The only guard on that delete path today is the `has_memory` skip (overridable via `include_with_memory`) and the `dry_run: true` default. A false orphan that has no `memory/` subdir is deleted with its full session history.
-
-Nothing in the codebase reads session file contents for a `cwd` field. `grep -rn cwd src` matches only a comment in [src/config/index.ts](../../src/config/index.ts) about not using `process.cwd()`. The authoritative source path is written into the session records on disk, but this server has never opened them for that purpose — `sessionRead()` is the only reader of `.jsonl` content and it returns raw lines for preview.
-
-The path-containment helpers in [src/utils/utils.ts](../../src/utils/utils.ts) (`resolveWithinRoot()`, `assertRealPathWithinRoot()`) protect user-supplied identifiers that become path segments under a configured root. A `cwd` read out of a session file is a different kind of input — an absolute path from file content, pointing deliberately outside every configured root — and no validator for that shape exists today.
-
-Existing coverage in [src/main/claude-code/audit.test.ts](../../src/main/claude-code/audit.test.ts) asserts orphan flagging and pruning against tmpdir fixtures whose paths round-trip cleanly (the non-orphan case uses `/tmp`). No fixture exercises a source path containing `.` or `-`, so the collision is invisible to the current suite.
+The implementation is in `src/main/claude-code/audit.ts`; `src/tools/claude-code/index.ts` publishes a boolean `source_exists`, orphan counts, and prune results. The existing operator cleanup guide still defines an orphan by the decoded source path. UUID session filenames and lexical/realpath containment helpers already exist. The generic `pathExists()` collapses errors and must not be used to prove that a content-derived source is missing.
 
 ## Steps
 
-- [ ] Confirm the on-disk shape first: inspect real session `.jsonl` records to establish where `cwd` appears and how consistently, before fixing any parsing contract.
-- [ ] Add a bounded `cwd` resolver in `src/main/claude-code/audit.ts` that reads a capped number of leading lines/bytes from a project's session files, extracts `cwd` from the first parseable record that carries it, and returns `null` on absent, unreadable, or unparseable input.
-- [ ] Validate the recovered value before trusting it — absolute, no `..` segment — and only then existence-check it; an invalid or missing value must degrade to unverifiable, never to orphan.
-- [ ] Rework `discoverProjects()` to report a three-valued source status (verified-present / verified-missing / unverifiable) alongside its provenance, keeping the decoded slug as a best-effort display value only, and propagate that through `projectsList()` and `storageSummary()`.
-- [ ] Restrict `pruneOrphanProjects()` to verified-missing projects, retaining the `has_memory` skip and the `dry_run` default, and report unverifiable projects as explicitly skipped with a reason.
-- [ ] Extend fixtures to cover a source path containing `.` and `-`, a project with no readable `cwd`, and a project whose `cwd` is readable but genuinely gone; update tool output schemas, descriptions, and README wording to match the new status vocabulary.
+- [ ] Add a deterministic content-derived source resolver beside `discoverProjects()`. Inspect at most 32 recognised regular session files and at most 2 MiB total per project, with a 256 KiB per-file limit. Use bounded reads that detect growth/truncation and no unbounded `readFile`; reaching a limit before complete inspection makes the project unverifiable. Ignore blank lines, require parseable JSON objects, and accept only top-level string `cwd` fields. Every recognised session file must provide usable evidence; no evidence or conflicting evidence is unverifiable.
+- [ ] Validate each `cwd` as an absolute path without NUL or a `..` segment and require its encoded value to equal the project directory identifier. Require one consistent normalised path across the complete inspected set. Reject symlinked or escaping session inputs with the existing lexical and physical-root guards. A session cwd in a different directory is unverifiable; do not infer a repository ancestor.
+- [ ] Classify that path as `verified-present`, `verified-missing`, or `unverifiable`. Only `ENOENT` establishes missing; permissions and other I/O errors stay unverifiable. Preserve the decoded slug only as a display hint. Add `source_status`, nullable `source_path`, provenance, and a reason; retain `source_exists` as a nullable compatibility field (`true`, `false`, or `null`) so unknown does not masquerade as false.
+- [ ] Propagate the status through project listing and storage summary; count only verified-missing projects as orphans and report an unverifiable-project count. Restrict orphan pruning to verified-missing projects; report unknown and memory-protected projects as skipped with reasons. Before each non-preview removal, repeat source verification and physical target containment and skip changed evidence or a newly present source.
+- [ ] Add isolated fixtures for dot/dash collisions, missing or conflicting cwd, different-directory cwd, invalid paths, malformed JSON, unreadable or symlinked input, byte/file limits, source permission failure, genuinely missing sources, and evidence/source changes between selection and removal. Verify that `include_with_memory: true` never overrides an unverifiable result.
+- [ ] Update strict output schemas and schema tests, tool descriptions, committed generated client types as affected, the README tool reference, and operator cleanup/safety guidance. Run the project verification gates against fixtures only.
 
 ## Files touched
 
-- [src/main/claude-code/audit.ts](../../src/main/claude-code/audit.ts) — `decodeProjectDir`, `discoverProjects`, `storageSummary`, `pruneOrphanProjects`, plus the new resolver
-- [src/main/claude-code/audit.test.ts](../../src/main/claude-code/audit.test.ts) — collision, unverifiable, and verified-missing fixtures
-- [src/tools/claude-code/index.ts](../../src/tools/claude-code/index.ts) — output schema fields and tool descriptions for `claude_code_projects_list`, `claude_code_storage_summary`, `claude_code_orphan_projects_prune`
-- [src/tools/claude-code/schemas.test.ts](../../src/tools/claude-code/schemas.test.ts) — registration/schema assertions for the changed shapes
-- [README.md](../../README.md) — the orphan rows in Available Tools
-- [CLAUDE.md](../../CLAUDE.md) — Security Requirements, if a new content-derived-path validator is introduced
+`src/main/claude-code/audit.ts`, `src/main/claude-code/audit.test.ts`, `src/tools/claude-code/index.ts`, `src/tools/claude-code/schemas.test.ts`, affected `src/generated/client.ts` and `src/generated/types.d.ts`, `README.md`, `docs/guides/operator/cleaning-up-state.md`, and `docs/guides/operator/safety-model.md`. Regenerate client artifacts from an isolated local server only if their published shapes change. Shared helpers change only if required for a tested reusable error distinction.
 
 ## Verify
 
-1. `bun run test`
-2. `bun run test:coverage`
-3. `bun run ki:test:smoke`
-4. `ki repo audit --repo .`
-5. A fixture project whose real source path contains `.` and `-` is reported present, is excluded from `orphan_project_count`, and survives `pruneOrphanProjects` with `dry_run: false` and `include_with_memory: true`.
-6. A fixture project with no readable `cwd` is reported unverifiable and is never deleted under any argument combination.
+Run `bun run test`, `bun run test:coverage`, `bunx tsc --noEmit`, `bun run ki:test:smoke`, and `ki repo audit --repo .` sequentially. A complete valid fixture for a missing source must be removable; a punctuation-containing present source and every unverifiable fixture must retain all bytes under every dry-run/memory argument combination. Output schema assertions must distinguish `source_exists: null` and the status/reason fields. Read limits must be asserted by the bounded reader tests; source or evidence changes discovered at revalidation must skip deletion. Pre-existing unrelated fleet findings are recorded separately from changed-contract failures.
 
 ## Dependencies / blocks
 
-Nothing blocks this item and it blocks nothing; both frontmatter arrays are empty and that reflects the code. The work is confined to the Claude Code group, whereas [MCP-CH-OPS-002](MCP-CH-OPS-002-add-destructive-cleanup-tools.md) adds tools to the Claude Desktop group; they share no call path beyond the generic helpers in `src/utils/`, so neither has to land first.
-
-There is a judgment-level relationship worth stating without inventing a mechanical one: this item hardens an existing destructive tool against a false-positive delete, and OPS-002 adds new destructive tools. Doing this one first keeps the fleet's safety posture ahead of its destructive surface, but that is a sequencing preference, not a dependency.
+No build-order blocker. Prefer this safety repair before [the Claude Desktop cleanup expansion](MCP-CH-OPS-002-add-destructive-cleanup-tools.md); the implementation groups are independent, so no artificial dependency is added. The read limits are deliberately conservative and documented; broader format support or larger limits need separate evidence and cannot weaken the unknown-means-skip rule.
 
 ## Documentation impact
 
 ### Decision Records
 
-None.
+No new deletion authority is introduced. The existing item already requires unverifiable sources to survive; the plan makes that contract explicit and testable. Keep the bounded evidence assumptions in developer-facing source comments and operator guidance.
 
 ### Specifications
 
-None.
+Project-list and summary outputs gain explicit source status and uncertainty, and the existing boolean becomes nullable. Update schemas and client types together; there is no separate declared specification collection in this repository.
 
 ### Guides
 
-Update the README if the delivered path-safety behaviour changes operator expectations.
+Replace the slug-based orphan definition in the operator cleanup guide. Explain conservative skips, memory protection, evidence limits, and the need to inspect preview results before enabling effects.
 
 ### Roadmap
 
-No additional roadmap impact.
+No new work is required for safe completion. Broader historical session-format support or performance optimisation can be captured independently if fixtures establish a real need.
 
 ## Discussion
 
-### The collision is the whole problem
+### Ambiguous directory encoding
 
-`s/[\/.]/-/g` is not injective, so no decoder can recover the original path from the slug alone — the ambiguity is in the encoding, not in the current implementation's cleverness. Any fix that stays inside the slug (heuristic re-expansion, trying candidate splits, checking which candidate exists) trades one guess for another. Reading `cwd` from the session records replaces guessing with the value the writer actually recorded, which is why the item is framed around that field rather than around a better decoder.
+The forward encoding loses information, so heuristic slug reversal cannot prove that a source disappeared. The source must come from validated session evidence, and unavailable evidence must retain history.
 
-### Unverifiable must be its own state
+### Bounded evidence and coverage
 
-Today `source_exists` is a boolean, and false doubles as both "the source is gone" and "we could not work out what the source was". Collapsing those is what makes the delete unsafe. The Boundary above resolves it in one direction only — unverifiable never gets deleted — which means the type has to carry three states, and the tool output has to say which one it is so an operator can tell a genuine orphan from a project the server could not read.
+The prior plan left read budgets and real-record discovery unresolved. This plan selects a conservative supported contract, with complete inspection inside explicit limits and a safe unverifiable result outside them. It does not claim that top-level cwd appears in every historical session format. Reading only the first convenient cwd cannot prove that later sessions agree, so incomplete or conflicting evidence cannot authorize deletion.
 
-### Open question: cost and bounding of the read
+### Compatibility and race limits
 
-Reading session content on every `projectsList` / `storageSummary` call is more expensive than the current `pathExists` on a decoded string, and project dirs can hold many large `.jsonl` files. The read must be bounded (first N lines or bytes, first file that yields a `cwd`), and it may want a cached or opt-in path for the pure-listing tools, but the right bound has not been chosen and should be settled against real file sizes during step 1.
-
-### Uncertainty flagged
-
-I have not verified the record shape of a session `.jsonl` line in this session — the repo's own code never reads `cwd`, so there is no in-repo evidence of where the field sits or whether every record carries it. Step 1 exists precisely to establish that before the parsing contract is fixed; if `cwd` turns out to be absent or inconsistent in practice, the fallback is the Boundary's unverifiable state, and the value of the item shrinks to "stop deleting on a guess" rather than "resolve the true path".
+A nullable compatibility field preserves the name without preserving the unsafe false-for-unknown meaning. Typed consumers need the schema/type update. Revalidation narrows races at effect time; it cannot provide a transaction over an independently changing external filesystem, and the implementation must not claim that guarantee.

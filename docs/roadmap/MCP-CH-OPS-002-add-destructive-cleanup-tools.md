@@ -4,98 +4,75 @@ area: OPS
 title: Add Claude cleanup tools
 theme: operations
 horizon: next
-status: draft
+status: ready
 blocks: []
 blocked_by: []
 baseline_ref: null
 created_at: 2026-07-29T00:37:05Z
-updated_at: 2026-08-18T13:19:35Z
+updated_at: 2026-10-01T19:30:08Z
 ---
 
 ## Goal
 
-Achieve the stated outcome: Add destructive cleanup tools for Claude Desktop sessions and outputs.
+An operator can preview and remove obsolete Claude Desktop sessions and their outputs through the existing access-gated cleanup workflow, with the same selection rules used by the read-only audits.
 
 ## Context
 
-Add dry-run-first, access-gated prune tools for the existing Claude Desktop obsolete-session and obsolete-output audits.
+`listObsolete()` already selects aged regular `local_*.json` session files and reports the corresponding session-directory size. `obsoleteOutputs()` reports direct regular files inside each session's `outputs/` and `uploads/`, marking sessions obsolete from the JSON mtime or the directory mtime when JSON is absent. Neither has a prune counterpart. Existing destructive tools provide annotation, dry-run, and single-workspace conventions.
 
 ## Boundary
 
-Use the standard destructive annotations.
+Add only age-based session and output cleanup within one explicitly resolved workspace. Output cleanup targets both outputs and uploads of obsolete sessions; no age-independent named-session delete is introduced. Preserve default preview and memory/source boundaries; never operate on real user roots in tests. A path escape, unsupported entry type, unreadable timestamp, or changed candidate must be skipped or fail before deleting that candidate.
 
 ## Current state
 
-Both audits exist and are read-only. `listObsolete()` in [src/main/claude-desktop/audit.ts](../../src/main/claude-desktop/audit.ts) selects `local_*.json` files in a workspace root older than `older_than_days` and reports each with its own size plus the size of the matching `local_*` sibling directory. `obsoleteOutputs()` in the same file walks each `local_*` directory, lists the files directly inside its `outputs/` and `uploads/` subdirs, and marks each finding `obsolete` based on the mtime of the corresponding `<session>.json` (falling back to the directory's own mtime).
-
-They are surfaced as `claude_desktop_sessions_obsolete` and `claude_desktop_outputs_obsolete`, both registered with `READ_ONLY` in [src/tools/claude-desktop/index.ts](../../src/tools/claude-desktop/index.ts) and both aggregated across workspaces via the `aggregate()` helper.
-
-Neither has a prune counterpart. The only destructive tools in the Claude Desktop group today are `claude_desktop_artifacts_prune`, `claude_desktop_reports_clear` and `claude_desktop_memory_delete` — confirmed against the registrations in `src/tools/claude-desktop/index.ts` and the `EXPECTED_TOOLS` list in [scripts/smoke.ts](../../scripts/smoke.ts). So an operator can see obsolete Claude Desktop sessions and outputs through this server but cannot act on them through it.
-
-The sibling groups already have the equivalent: `claude_code_sessions_prune` (backed by `sessionsPrune` in `src/main/claude-code/audit.ts`) and `vscode_sessions_prune`. This is a gap in the Claude Desktop group specifically, not a missing capability pattern.
-
-Every convention the work needs is already in place. `DESTRUCTIVE_ONESHOT` in [src/utils/annotations.ts](../../src/utils/annotations.ts) is the correct preset for prunes whose effect depends on current filesystem contents; `makeAccessGatedRegister()` derives the registration level from those annotations, so the tools stay hidden at the default `read` access level; `requireSingleWorkspace()` in the tools file forces an explicit `workspace` argument when more than one workspace is configured; and `claude_desktop_artifacts_prune` is the in-repo model for the `dry_run: boolean` default-`true` shape.
+Implementation belongs in `src/main/claude-desktop/audit.ts` and registration in `src/tools/claude-desktop/index.ts`. The existing `listObsolete()` view publishes only its top ten oldest entries, so a prune must use the complete internal selector, not its display slice. `requireSingleWorkspace()`, `DESTRUCTIVE_ONESHOT`, and both containment helpers are available. Existing operator guides now own practical cleanup and safety instructions; updating only the README would leave those guides stale.
 
 ## Steps
 
-- [ ] Add prune functions beside their audits in `src/main/claude-desktop/audit.ts`, taking the workspace root plus `{ older_than_days, dry_run }`, and reusing the same selection predicates the audits use so preview and effect cannot diverge.
-- [ ] Declare and enforce the deletion patterns explicitly: session pruning removes only a matched `local_*.json` and its matching `local_*` directory; output pruning removes only files directly inside `<session>/outputs/` and `<session>/uploads/` and never the session directory itself.
-- [ ] Register `claude_desktop_sessions_prune` and `claude_desktop_outputs_prune` with `DESTRUCTIVE_ONESHOT`, a `dry_run` default of `true`, `.strict()` schemas, and `requireSingleWorkspace()` rather than cross-workspace aggregation.
-- [ ] Add tmpdir-backed tests covering the dry-run/no-mutation case, agreement between the audit's list and the prune's deletions, survival of non-matching filenames, and the age-cutoff boundary.
-- [ ] Update `EXPECTED_TOOLS` in `scripts/smoke.ts` and the Available Tools table and workflow prose in the README so the wire surface, the docs, and the code stay in step.
+- [ ] Extract complete internal candidate selectors shared by audit, dry-run, and effect. Evaluate the same strict age comparison against one operation timestamp. A session candidate is a regular `local_*.json` older than cutoff plus its optional matching `local_*` directory. Output candidates are only direct regular files inside an obsolete session's `outputs/` and `uploads/`; retain the audit's directory-mtime fallback only when the JSON is genuinely absent.
+- [ ] Add session and output prune implementation functions with `{ older_than_days, dry_run }`. Session cleanup removes the exact selected JSON and matching contained directory; output cleanup removes only selected direct files and preserves session metadata, directories, and nested files. Reject or explicitly skip symlinked roots, session paths, subdirectories, and files, and apply lexical and realpath containment immediately before each effect.
+- [ ] Return complete preview/effect candidate lists, affected bytes, dry-run state, and skipped reasons. Recheck age, path identity, and containment before removal and skip a newly active, changed, or missing candidate. Describe any partial progress honestly if a later filesystem operation fails; do not claim transactionality.
+- [ ] Register `claude_desktop_sessions_prune` and `claude_desktop_outputs_prune` with `DESTRUCTIVE_ONESHOT`, strict input/output schemas, and `dry_run` defaulting to true. Use `requireSingleWorkspace()` rather than the audit aggregation wrapper.
+- [ ] Add isolated tests for exact cutoff, more than ten matching sessions, absent sidecar, JSON-absent output fallback, young-session retention, pattern exclusion, nested-file retention, default-preview byte preservation, path traversal/symlink escapes, changed-candidate revalidation, and explicit workspace selection when multiple workspaces exist.
+- [ ] Update schema/access tests, smoke inventory, affected committed generated client artifacts, README tool reference, and operator cleanup/safety guides. State plainly that output cleanup can delete uploads as well as generated outputs.
 
 ## Files touched
 
-- [src/main/claude-desktop/audit.ts](../../src/main/claude-desktop/audit.ts) — the two new prune functions alongside `listObsolete` and `obsoleteOutputs`
-- [src/main/claude-desktop/audit.test.ts](../../src/main/claude-desktop/audit.test.ts) — prune behaviour, pattern scoping, and boundary fixtures
-- [src/tools/claude-desktop/index.ts](../../src/tools/claude-desktop/index.ts) — registration in the destructive block
-- [src/tools/claude-desktop/schemas.test.ts](../../src/tools/claude-desktop/schemas.test.ts) — annotation and `dry_run` default assertions
-- [scripts/smoke.ts](../../scripts/smoke.ts) — `EXPECTED_TOOLS`
-- [README.md](../../README.md) — Available Tools and the cleanup workflow section
+`src/main/claude-desktop/audit.ts`, `src/main/claude-desktop/audit.test.ts`, `src/tools/claude-desktop/index.ts`, `src/tools/claude-desktop/schemas.test.ts`, `scripts/smoke.ts`, affected `src/generated/client.ts` and `src/generated/types.d.ts`, `README.md`, `docs/guides/operator/cleaning-up-state.md`, and `docs/guides/operator/safety-model.md`. Use an isolated local server when regenerating client artifacts.
 
 ## Verify
 
-1. `bun run test`
-2. `bun run test:coverage`
-3. `bun run ki:test:smoke` — passes only once `EXPECTED_TOOLS` and the registered surface agree on both new names.
-4. `ki repo audit --repo .`
-5. Both tools are absent from `tools/list` at the default `read` access level and present at `destructive`.
-6. With `dry_run` left at its default, a fixture workspace is byte-for-byte unchanged while the response still reports what would be removed.
+Run `bun run test`, `bun run test:coverage`, `bunx tsc --noEmit`, `bun run ki:test:smoke`, and `ki repo audit --repo .` sequentially. Both new tools must be absent at `read` and `write`, visible at `destructive`, and non-mutating when `dry_run` is omitted. For unchanged fixture state, audit selection, preview, and actual deletion must agree over the complete candidate set, including more than ten sessions. Nonmatching, young, symlinked, escaping, and changed candidates must survive. Output-prune preserves nested files; session-prune deliberately removes the complete selected session directory, including its nested contents. Multi-workspace calls without a valid explicit target must fail without mutation. Record unrelated pre-existing audit findings separately.
 
 ## Dependencies / blocks
 
-Nothing blocks this item and it blocks nothing; both frontmatter arrays are empty and that matches the code. The work sits entirely in the Claude Desktop group, while [MCP-CH-OPS-001](MCP-CH-OPS-001-make-orphan-detection-path-safe.md) changes the Claude Code group's orphan detection, and the two touch no shared implementation.
-
-The one genuine coupling is conventional rather than mechanical: if OPS-001 introduces a new safety idiom for destructive tools, the tools added here should adopt it. That argues for taking OPS-001 first, but it does not block this item.
+No mechanical dependency. Prefer the Claude Code orphan-safety repair first, but these functions and registrations are in a different application group. No new access tier, environment variable, remote service, or registry dependency is needed.
 
 ## Documentation impact
 
 ### Decision Records
 
-None.
+No new authority model: both tools use the existing destructive visibility gate and explicit effect opt-in. Age-driven output cleanup is the selected scope of this record; age-independent deletion remains excluded.
 
 ### Specifications
 
-None.
+Add strict schemas for the two new MCP tools and corresponding generated client shapes. Preserve the existing audits' public result shapes while sharing their internal selection logic.
 
 ### Guides
 
-Document destructive cleanup tools, safety defaults, and dry-run behaviour in the README.
+Extend the operator cleanup and safety guides with the two preview/effect workflows, exact filename/directory scope, uploads consequence, and changed-candidate skips. Keep README reference and smoke inventory aligned.
 
 ### Roadmap
 
-No additional roadmap impact.
+No separate follow-on is required to complete this bounded surface. Any later targeted deletion mode needs its own scoped record.
 
 ## Discussion
 
-### Preview and effect must share one predicate
+### One age-based contract
 
-The main design constraint is that the prune must not re-derive its own notion of "obsolete". If the prune reimplements the mtime comparison or the filename match, the read-only audit an operator inspects and the destructive tool they then run can disagree, and the `dry_run` default stops being a meaningful safeguard. Factoring the selection out of `listObsolete` and `obsoleteOutputs` so both the audit and the prune call it is the shape to aim for.
+The earlier alternative between age-based pruning and arbitrary named-session output deletion is resolved in favour of age-based pruning, matching the existing audits and this item's goal. Both previews and effects consume the complete selector rather than reimplementing it or consuming a top-ten presentation.
 
-### Open question: what output pruning should be allowed to target
+### Filesystem changes
 
-`obsoleteOutputs()` already computes an `obsolete` flag per session, so the obvious rule is that output pruning only touches sessions that flag obsolete. The alternative — pruning `outputs/` and `uploads/` for a named session regardless of its age, on the grounds that generated artifacts are cheaper to lose than session records — is defensible but changes the tool from an age-driven prune into a targeted delete, with a different argument shape. This is undecided and should be settled before step 3.
-
-### Sizing of the destructive surface
-
-This adds two tools to a group that currently has three destructive ones, all hidden behind the default `read` access level. That is within the existing pattern rather than a step change, and no new environment knob or access tier is needed — the annotation-derived gate plus the `dry_run` default already provide the two required layers.
+A dry-run and later effect are separate observations. Revalidation must retain candidates that have become active or changed; it narrows the race without promising atomic deletion across externally changing files. The existing containment and access rules apply to every new effect.
