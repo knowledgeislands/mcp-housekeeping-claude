@@ -4,12 +4,12 @@ area: OPS
 title: Harden orphan detection
 theme: operations
 horizon: next
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: e0fa4516adb94f8a488226c863e71ff88039663b
 created_at: 2026-07-29T00:37:05Z
-updated_at: 2026-10-01T20:29:01Z
+updated_at: 2026-10-02T02:20:58Z
 ---
 
 ## Goal
@@ -92,6 +92,10 @@ The original dot/dash collision can no longer authorize deletion, and unknown ev
 ### Mini recap
 
 The approved safety repair and required documentation are delivered and verified. No live Claude state was read or changed, and no remote Git ref was pushed. The item remains Awaiting review until explicit acceptance.
+
+## Done
+
+Accepted 2026-10-02 by Kris Brown on the review packet above.
 
 ## Discussion
 

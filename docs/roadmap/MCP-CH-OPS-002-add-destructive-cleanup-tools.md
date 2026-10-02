@@ -4,12 +4,12 @@ area: OPS
 title: Add Claude cleanup tools
 theme: operations
 horizon: next
-status: awaiting-review
+status: done
 blocks: []
 blocked_by: []
 baseline_ref: c205b0158ae0f5ee158c553ed195c345b0b01f11
 created_at: 2026-07-29T00:37:05Z
-updated_at: 2026-10-01T21:53:09Z
+updated_at: 2026-10-02T02:20:58Z
 ---
 
 ## Goal
@@ -92,6 +92,10 @@ The complete candidate set, including more than ten sessions, drives audit, prev
 ### Mini recap
 
 The scoped implementation and verification are complete in the local checkout. No Git remote was pushed. This item remains Awaiting review until owner acceptance of this packet.
+
+## Done
+
+Accepted 2026-10-02 by Kris Brown on the review packet above.
 
 ## Discussion
 
