@@ -42,6 +42,8 @@ This is the canonical layout we roll out across the MCPs:
 
 To use the code from a script: `const cfg = loadConfig(); await projectsList(cfg.claudeCodeRootPath)`.
 
+This dependency direction is enforced, not just described: [.dependency-cruiser.ts](./.dependency-cruiser.ts) states each boundary as a named rule and [src/boundaries.test.ts](./src/boundaries.test.ts) cruises the source graph and proves every rule still rejects a deliberate crossing. Tool modules may reach only the `main/` modules their surface `index.ts` re-exports, `config/index.ts`, and the `annotations.ts` and `utils.ts` helpers. The checker runs from its own install root, `tooling/boundaries`, because dependency-cruiser needs a TypeScript below 7.
+
 ### Naming convention
 
 Tool names follow `<app>_<resource>_<action>` (snake_case). `<app>` ∈ {`claude_desktop`, `claude_code`, `vscode`}. `<resource>` is plural for collection ops, singular for single-item ops. `<action>` is a verb or view (`list`, `read`, `write`, `delete`, `prune`, `relocate`, `summary`, `status`, `health`, `inventory`, `clear`, `obsolete`).
