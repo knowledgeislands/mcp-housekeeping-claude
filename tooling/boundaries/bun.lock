@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "mcp-gsuite-boundary-tooling",
+      "name": "mcp-housekeeping-claude-boundary-tooling",
       "dependencies": {
         "dependency-cruiser": "^18.5.0",
         "typescript": "^6.0.3",
