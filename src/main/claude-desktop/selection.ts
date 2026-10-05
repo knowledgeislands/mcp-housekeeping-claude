@@ -88,7 +88,7 @@ export const inspectSession = async (root: string, name: string, cutoff: number)
   if (!SESSION_NAME.test(name)) return null
   const jsonPath = await safePath(root, `${name}.json`)
   const jsonStat = await lstatOrNull(jsonPath)
-  if (!jsonStat || !jsonStat.isFile() || jsonStat.mtimeMs >= cutoff || !Number.isFinite(jsonStat.mtimeMs)) return null
+  if (!jsonStat?.isFile() || jsonStat.mtimeMs >= cutoff || !Number.isFinite(jsonStat.mtimeMs)) return null
   const dirPath = resolveWithinRoot(root, name)
   const dirStat = await lstatOrNull(dirPath)
   if (dirStat && !dirStat.isDirectory()) throw new Error('Session sidecar is not a direct directory.')
