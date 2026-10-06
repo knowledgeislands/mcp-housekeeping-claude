@@ -5,7 +5,7 @@ Use this guide to get the server built and answering from an MCP client. Install
 ## Before you begin
 
 - **macOS.** Every directory the server reads is a macOS location, and they are derived from your home directory rather than configured. On another platform the server starts and every tool reports its root as missing.
-- **[Bun](https://bun.sh) 1.3 or newer** for installing dependencies and running the repository scripts. `mise.toml` pins `bun = "1.4.1"`; `package.json` declares the same version as its `packageManager`.
+- **[Bun](https://bun.sh) 1.3 or newer** for installing dependencies and running the repository scripts. `mise.toml` pins `bun = "1.4.2"`; `package.json` declares the same version as its `packageManager`.
 - **Node 22 or newer** to run the compiled `dist/` output, which is what an MCP client launches. `mise.toml` pins `node = "lts"`.
 - **`du`** on `PATH`, used for disk-usage measurement. It is standard on macOS.
 - **A directory for reports.** `MCP_HOUSEKEEPING_CLAUDE_PATH` is the one required environment variable, and the server refuses to start without it.
