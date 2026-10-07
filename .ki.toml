@@ -59,9 +59,8 @@ organisation_code = "KIS"
 adapter = "roadmap"
 
 [skills.ki-work-roadmap]
-themes = ["foundation-tooling", "operations"]
-areas.FND = "foundation-tooling"
-areas.OPS = "operations"
+areas = ["FND", "OPS"]
+components = ["operations"]
 
 [skills.ki-housekeeping-claude]
 auto_memory = "disabled"
