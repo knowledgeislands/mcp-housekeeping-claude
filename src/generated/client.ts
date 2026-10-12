@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Generated on 2026-07-19T00:07:27.719Z by @knowledgeislands/mcp-housekeeping-claude@1.0.0
-// Server: kit-mcp-housekeeping-claude
+// Server: mcp-housekeeping-claude
 // Source: /Users/krisbrown/.mcporter/mcporter.json
 // Transport: STDIO /Users/krisbrown/.local/share/mise/installs/node/lts/bin/node /Users/krisbrown/workspaces/kis/knowledgeislands/mcp-housekeeping-claude/dist/mcp-server/index.js
 
@@ -22,7 +22,7 @@ export async function createKitMcpClaudeHousekeepingClient(options: CreateClient
     rootDir: options.rootDir,
   }));
   const ownsRuntime = !options.runtime;
-  const proxy = createServerProxy(runtime, "kit-mcp-housekeeping-claude");
+  const proxy = createServerProxy(runtime, "mcp-housekeeping-claude");
   const client: KitMcpClaudeHousekeepingClient = {
     async claude_desktop_storage_summary(params: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_storage_summary"]>[0]) {
       const tool = proxy.claudeDesktopStorageSummary as (args: Parameters<KitMcpClaudeHousekeepingTools["claude_desktop_storage_summary"]>[0]) => Promise<unknown>;
@@ -182,7 +182,7 @@ export async function createKitMcpClaudeHousekeepingClient(options: CreateClient
 
     async close() {
       if (ownsRuntime) {
-        await runtime.close("kit-mcp-housekeeping-claude").catch(() => {});
+        await runtime.close("mcp-housekeeping-claude").catch(() => {});
       }
     },
   };

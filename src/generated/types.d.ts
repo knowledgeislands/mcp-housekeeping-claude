@@ -1,5 +1,5 @@
 // Generated on 2026-07-19T00:07:27.719Z by @knowledgeislands/mcp-housekeeping-claude@1.0.0
-// Server: kit-mcp-housekeeping-claude
+// Server: mcp-housekeeping-claude
 // Source: /Users/krisbrown/.mcporter/mcporter.json
 // Transport: STDIO /Users/krisbrown/.local/share/mise/installs/node/lts/bin/node /Users/krisbrown/workspaces/kis/knowledgeislands/mcp-housekeeping-claude/dist/mcp-server/index.js
 
