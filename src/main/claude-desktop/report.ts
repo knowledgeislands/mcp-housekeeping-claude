@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { isNodeError } from '../../utils/utils.js'
+import { isNodeError, pathExists } from '../../utils/utils.js'
 
 const REPORT_PATTERN = /^cowork-audit-.*\.md$/
 
@@ -52,18 +52,21 @@ export const reportClean = async (housekeepingPath: string, args: { dry_run: boo
   return { housekeeping_dir: housekeepingPath, deleted: matches, dry_run: false }
 }
 
-export const reportWrite = async (housekeepingPath: string, args: { content: string; date?: string }) => {
+export const reportWrite = async (
+  housekeepingPath: string,
+  args: { content: string; date?: string; dry_run: boolean }
+) => {
   const date = args.date ?? new Date().toISOString().slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error(`Invalid date "${date}" — expected YYYY-MM-DD`)
   }
-  await fs.mkdir(housekeepingPath, { recursive: true })
   const filename = `cowork-audit-${date}.md`
   const fullPath = path.join(housekeepingPath, filename)
+  const existed = await pathExists(fullPath)
+  const bytes = Buffer.byteLength(args.content, 'utf-8')
+  // A dry run reports the target, with no mkdir and no write.
+  if (args.dry_run) return { path: fullPath, bytes, filename, dry_run: true, written: false, existed }
+  await fs.mkdir(housekeepingPath, { recursive: true })
   await fs.writeFile(fullPath, args.content, 'utf-8')
-  return {
-    path: fullPath,
-    bytes: Buffer.byteLength(args.content, 'utf-8'),
-    filename
-  }
+  return { path: fullPath, bytes, filename, dry_run: false, written: true, existed }
 }

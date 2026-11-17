@@ -66,9 +66,9 @@ Memory is the one area where the deleting tool is the safer one and the writing 
 
 **Read first.** `claude_desktop_memory_spaces_summary` picks the space; `claude_desktop_memory_list` and `claude_desktop_memory_read` show what is in it. For Claude Code, `claude_code_memory_list` and `claude_code_memory_read` do the same for a project's `memory/`.
 
-**Write with care.** `memory_write` creates or replaces one file's entire contents, and `memory_index_write` replaces the whole `MEMORY.md`. Neither has a `dry_run` — the first call is the change. Have the current contents in front of you before asking for either.
+**Write with care.** `memory_write` creates or replaces one file's entire contents, and `memory_index_write` replaces the whole `MEMORY.md`. Both preview by default: with `dry_run` left at `true` they report whether the file exists and how many bytes would be written, and change nothing. Have the current contents in front of you before passing `dry_run: false`.
 
-**Retire deliberately.** `memory_delete` removes one file and does have `dry_run: true` by default. It refuses `MEMORY.md` outright: replacing the index is `memory_index_write`'s job, not a delete-and-recreate.
+**Retire deliberately.** `memory_delete` removes one file, also with `dry_run: true` by default. It refuses `MEMORY.md` outright: replacing the index is `memory_index_write`'s job, not a delete-and-recreate.
 
 **Recovery.** None for an overwritten file. The audit log records that the write happened and how many bytes it carried, but the sanitiser deliberately does not log the content, so it cannot give you back the previous text.
 

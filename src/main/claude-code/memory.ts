@@ -1,7 +1,7 @@
 import type { Dirent } from 'node:fs'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { assertRealPathWithinRoot, isNodeError, resolveWithinRoot } from '../../utils/utils.js'
+import { assertRealPathWithinRoot, isNodeError, pathExists, resolveWithinRoot } from '../../utils/utils.js'
 
 const projectMemoryDir = (claudeRoot: string, project: string): string => {
   return resolveWithinRoot(path.join(claudeRoot, 'projects'), path.join(project, 'memory'))
@@ -61,12 +61,19 @@ export const memoryRead = async (claudeRoot: string, args: { project: string; na
   }
 }
 
-export const memoryWrite = async (claudeRoot: string, args: { project: string; name: string; content: string }) => {
+export const memoryWrite = async (
+  claudeRoot: string,
+  args: { project: string; name: string; content: string; dry_run: boolean }
+) => {
   const p = memoryFilePath(claudeRoot, args.project, args.name)
   await assertRealPathWithinRoot(claudeRoot, p)
+  const existed = await pathExists(p)
+  const bytes = Buffer.byteLength(args.content, 'utf-8')
+  // A dry run validates and reports, with no mkdir and no write.
+  if (args.dry_run) return { project: args.project, name: args.name, dry_run: true, written: false, existed, bytes }
   await fs.mkdir(path.dirname(p), { recursive: true })
   await fs.writeFile(p, args.content, 'utf-8')
-  return { project: args.project, name: args.name, bytes: Buffer.byteLength(args.content, 'utf-8') }
+  return { project: args.project, name: args.name, dry_run: false, written: true, existed, bytes }
 }
 
 export const memoryDelete = async (claudeRoot: string, args: { project: string; name: string; dry_run: boolean }) => {
@@ -91,10 +98,16 @@ export const memoryDelete = async (claudeRoot: string, args: { project: string; 
   return { project: args.project, name: args.name, dry_run: false, deleted: true, bytes }
 }
 
-export const memoryIndexWrite = async (claudeRoot: string, args: { project: string; content: string }) => {
+export const memoryIndexWrite = async (
+  claudeRoot: string,
+  args: { project: string; content: string; dry_run: boolean }
+) => {
   const p = memoryFilePath(claudeRoot, args.project, 'MEMORY.md')
   await assertRealPathWithinRoot(claudeRoot, p)
+  const existed = await pathExists(p)
+  const bytes = Buffer.byteLength(args.content, 'utf-8')
+  if (args.dry_run) return { project: args.project, dry_run: true, written: false, existed, bytes }
   await fs.mkdir(path.dirname(p), { recursive: true })
   await fs.writeFile(p, args.content, 'utf-8')
-  return { project: args.project, bytes: Buffer.byteLength(args.content, 'utf-8') }
+  return { project: args.project, dry_run: false, written: true, existed, bytes }
 }

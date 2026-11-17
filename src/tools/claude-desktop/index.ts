@@ -315,9 +315,12 @@ const reportsClearOutput = z
     note: z.string().optional()
   })
   .strict()
-const reportWriteOutput = z.object({ path: z.string(), bytes: countOutput, filename: z.string() }).strict()
+const writeEffectOutput = { dry_run: z.boolean(), written: z.boolean(), existed: z.boolean() }
+const reportWriteOutput = z
+  .object({ path: z.string(), bytes: countOutput, filename: z.string(), ...writeEffectOutput })
+  .strict()
 const memoryWriteOutput = z
-  .object({ workspace: z.string(), space_id: z.string(), name: z.string(), bytes: countOutput })
+  .object({ workspace: z.string(), space_id: z.string(), name: z.string(), bytes: countOutput, ...writeEffectOutput })
   .strict()
 const memoryDeleteOutput = z
   .object({
@@ -329,7 +332,9 @@ const memoryDeleteOutput = z
     bytes: countOutput
   })
   .strict()
-const memoryIndexWriteOutput = z.object({ workspace: z.string(), space_id: z.string(), bytes: countOutput }).strict()
+const memoryIndexWriteOutput = z
+  .object({ workspace: z.string(), space_id: z.string(), bytes: countOutput, ...writeEffectOutput })
+  .strict()
 const sessionRenameOutput = z
   .object({
     workspace: z.string(),
@@ -765,7 +770,7 @@ export const registerClaudeDesktopTools = (server: McpServer, cfg: Config): void
     'claude_desktop_report_write',
     {
       title: "Claude Desktop Cleaner: write today's audit report",
-      description: `Save the completed audit markdown to MCP_HOUSEKEEPING_CLAUDE_PATH/cowork-audit-YYYY-MM-DD.md. The date defaults to today (UTC). Creates the housekeeping directory if it does not exist. Returns the absolute path written.`,
+      description: `Save the completed audit markdown to MCP_HOUSEKEEPING_CLAUDE_PATH/cowork-audit-YYYY-MM-DD.md. The date defaults to today (UTC). Creates the housekeeping directory if it does not exist. Returns the absolute path. dry_run defaults to TRUE — it reports the target path and whether a report for that date already exists, without writing; pass dry_run=false to actually write.`,
       inputSchema: z
         .object({
           content: z.string().describe('Full markdown content of the audit report.'),
@@ -773,7 +778,8 @@ export const registerClaudeDesktopTools = (server: McpServer, cfg: Config): void
             .string()
             .regex(/^\d{4}-\d{2}-\d{2}$/)
             .optional()
-            .describe('YYYY-MM-DD; defaults to today (UTC).')
+            .describe('YYYY-MM-DD; defaults to today (UTC).'),
+          dry_run: z.boolean().default(true).describe('Default true (preview only). Pass false to actually write.')
         })
         .strict(),
       outputSchema: reportWriteOutput,
@@ -792,12 +798,13 @@ export const registerClaudeDesktopTools = (server: McpServer, cfg: Config): void
     'claude_desktop_memory_write',
     {
       title: 'Claude Desktop Cleaner: write/update a memory file',
-      description: `Create or overwrite a single memory file at <workspace>/spaces/<space_id>/memory/<name>. Use this when consolidating overlapping memories, sharpening a durable note, or updating relative dates to absolute. The "workspace" arg is required when more than one workspace is configured.`,
+      description: `Create or overwrite a single memory file at <workspace>/spaces/<space_id>/memory/<name>. Use this when consolidating overlapping memories, sharpening a durable note, or updating relative dates to absolute. dry_run defaults to TRUE — it reports whether the file exists and the bytes that would be written, without writing; pass dry_run=false to actually write. The "workspace" arg is required when more than one workspace is configured.`,
       inputSchema: z
         .object({
           space_id: spaceIdArg,
           name: memoryFileNameArg,
           content: z.string().describe('Full markdown content (frontmatter + body).'),
+          dry_run: z.boolean().default(true).describe('Default true (preview only). Pass false to actually write.'),
           workspace: workspaceArg
         })
         .strict(),
@@ -844,11 +851,12 @@ export const registerClaudeDesktopTools = (server: McpServer, cfg: Config): void
     'claude_desktop_memory_index_write',
     {
       title: 'Claude Desktop Cleaner: replace MEMORY.md index',
-      description: `Phase 3 of memory consolidation. Replace the contents of <workspace>/spaces/<space_id>/memory/MEMORY.md. Keep the index under 200 lines, one line per entry, format \`- [Title](file.md) — one-line hook\`. The "workspace" arg is required when more than one workspace is configured.`,
+      description: `Phase 3 of memory consolidation. Replace the contents of <workspace>/spaces/<space_id>/memory/MEMORY.md. Keep the index under 200 lines, one line per entry, format \`- [Title](file.md) — one-line hook\`. dry_run defaults to TRUE — it reports whether MEMORY.md exists and the bytes that would be written, without writing; pass dry_run=false to actually write. The "workspace" arg is required when more than one workspace is configured.`,
       inputSchema: z
         .object({
           space_id: spaceIdArg,
           content: z.string().describe('New MEMORY.md content.'),
+          dry_run: z.boolean().default(true).describe('Default true (preview only). Pass false to actually write.'),
           workspace: workspaceArg
         })
         .strict(),

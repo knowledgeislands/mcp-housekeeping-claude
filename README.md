@@ -56,10 +56,10 @@ This table is the only hand-maintained inventory of the surface; the guides deli
 | `claude_desktop_sessions_prune` | Preview or remove old `local_*.json` sessions and matching sidecar directories in one workspace. |
 | `claude_desktop_outputs_prune` | Preview or remove direct output and upload files of obsolete sessions; preserves metadata and nested files. |
 | `claude_desktop_reports_clear` | Delete every `cowork-audit-*.md` from `MCP_HOUSEKEEPING_CLAUDE_PATH`, with `dry_run`. |
-| `claude_desktop_report_write` | Save `cowork-audit-YYYY-MM-DD.md` to `MCP_HOUSEKEEPING_CLAUDE_PATH`. |
-| `claude_desktop_memory_write` | Create/overwrite a memory file in `spaces/<space_id>/memory/<name>.md`. |
+| `claude_desktop_report_write` | Save `cowork-audit-YYYY-MM-DD.md` to `MCP_HOUSEKEEPING_CLAUDE_PATH`, with `dry_run`. |
+| `claude_desktop_memory_write` | Create/overwrite a memory file in `spaces/<space_id>/memory/<name>.md`, with `dry_run`. |
 | `claude_desktop_memory_delete` | Retire a memory file (cannot delete `MEMORY.md`). |
-| `claude_desktop_memory_index_write` | Replace `MEMORY.md` for a space. |
+| `claude_desktop_memory_index_write` | Replace `MEMORY.md` for a space, with `dry_run`. |
 | `claude_desktop_session_rename` | Set the sidebar `title` on a session record (≤80 chars, emoji ok), with `dry_run`.† |
 
 † Auto-picks the most-recently-active session when `session_id` is omitted — Cowork agents share one MCP server, so the server cannot infer the calling session from execution context. Pass `session_id` (bare UUID) to disambiguate when multiple sessions are active concurrently.
@@ -86,9 +86,9 @@ This table is the only hand-maintained inventory of the surface; the guides deli
 | `claude_code_sessions_prune` | Delete sessions older than N days (+ sidecar dirs), with `dry_run`. |
 | `claude_code_project_relocate` | Rename a project subdir to match a new source path (fixes `/resume` after a rename). |
 | `claude_code_orphan_projects_prune` | Preview or delete only projects whose bounded session evidence verifies a missing source. |
-| `claude_code_memory_write` | Create/overwrite a memory file. |
+| `claude_code_memory_write` | Create/overwrite a memory file, with `dry_run`. |
 | `claude_code_memory_delete` | Retire a memory file. |
-| `claude_code_memory_index_write` | Replace `MEMORY.md`. |
+| `claude_code_memory_index_write` | Replace `MEMORY.md`, with `dry_run`. |
 
 ### `vscode_*` — read-only (`read` level)
 

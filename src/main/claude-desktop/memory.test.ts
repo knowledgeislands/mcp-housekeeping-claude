@@ -28,7 +28,8 @@ describe('memoryWrite + memoryRead', () => {
     const writeRes = await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, {
       space_id: SPACE_ID,
       name: 'feedback_test.md',
-      content: '# hello'
+      content: '# hello',
+      dry_run: false
     })
     expect(writeRes.bytes).toBe(7)
 
@@ -37,27 +38,37 @@ describe('memoryWrite + memoryRead', () => {
   })
 
   it('overwrites an existing file', async () => {
-    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'over.md', content: 'first' })
-    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'over.md', content: 'second' })
+    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, {
+      space_id: SPACE_ID,
+      name: 'over.md',
+      content: 'first',
+      dry_run: false
+    })
+    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, {
+      space_id: SPACE_ID,
+      name: 'over.md',
+      content: 'second',
+      dry_run: false
+    })
     const r = await memoryRead(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'over.md' })
     expect(r.content).toBe('second')
   })
 
   it('rejects names without .md extension', async () => {
     await expect(
-      memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'bad', content: 'x' })
+      memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'bad', content: 'x', dry_run: false })
     ).rejects.toThrow(/must end with .md/)
   })
 
   it('rejects path traversal in the name', async () => {
     await expect(
-      memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: '../escape.md', content: 'x' })
+      memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: '../escape.md', content: 'x', dry_run: false })
     ).rejects.toThrow(/Path escapes root/)
   })
 
   it('rejects path traversal in the space_id', async () => {
     await expect(
-      memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: '../other', name: 'a.md', content: 'x' })
+      memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: '../other', name: 'a.md', content: 'x', dry_run: false })
     ).rejects.toThrow(/Path escapes root/)
   })
 })
@@ -77,7 +88,7 @@ describe('memoryRead error paths', () => {
 
 describe('memoryDelete', () => {
   it('deletes an existing memory file when dry_run is false', async () => {
-    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'tmp.md', content: 'x' })
+    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'tmp.md', content: 'x', dry_run: false })
     const result = await memoryDelete(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'tmp.md', dry_run: false })
     expect(result).toMatchObject({ deleted: true, dry_run: false, bytes: 1 })
     await expect(memoryRead(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'tmp.md' })).rejects.toThrow(
@@ -86,7 +97,7 @@ describe('memoryDelete', () => {
   })
 
   it('previews without deleting when dry_run is true', async () => {
-    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'keep.md', content: 'abc' })
+    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'keep.md', content: 'abc', dry_run: false })
     const result = await memoryDelete(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'keep.md', dry_run: true })
     expect(result).toMatchObject({ deleted: false, dry_run: true, bytes: 3 })
     const back = await memoryRead(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'keep.md' })
@@ -137,8 +148,8 @@ describe('memoryList', () => {
   })
 
   it('lists .md files alphabetically with size + modified', async () => {
-    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'b.md', content: 'b' })
-    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'a.md', content: 'a' })
+    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'b.md', content: 'b', dry_run: false })
+    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'a.md', content: 'a', dry_run: false })
     const r = await memoryList(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID })
     expect(r.files.map((f) => f.name)).toEqual(['a.md', 'b.md'])
     expect(r.file_count).toBe(2)
@@ -146,13 +157,17 @@ describe('memoryList', () => {
   })
 
   it('returns the MEMORY.md content as the index when present', async () => {
-    await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, content: '- [Test](test.md) — entry' })
+    await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, {
+      space_id: SPACE_ID,
+      content: '- [Test](test.md) — entry',
+      dry_run: false
+    })
     const r = await memoryList(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID })
     expect(r.index).toBe('- [Test](test.md) — entry')
   })
 
   it('skips non-.md entries', async () => {
-    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'a.md', content: 'a' })
+    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'a.md', content: 'a', dry_run: false })
     await fs.writeFile(path.join(MEMORY_DIR, 'note.txt'), 'ignored')
     const r = await memoryList(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID })
     expect(r.files.map((f) => f.name)).toEqual(['a.md'])
@@ -169,17 +184,63 @@ describe('memoryList', () => {
   })
 })
 
+describe('memory writes: dry_run', () => {
+  it('memoryWrite dry_run creates neither the file nor its directory', async () => {
+    const fresh = 'fresh-space'
+    const r = await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, {
+      space_id: fresh,
+      name: 'new.md',
+      content: 'abc',
+      dry_run: true
+    })
+    expect(r).toEqual({ space_id: fresh, name: 'new.md', dry_run: true, written: false, existed: false, bytes: 3 })
+    await expect(fs.stat(path.join(CLAUDE_DESKTOP_ROOT_PATH, 'spaces', fresh))).rejects.toThrow(/ENOENT/)
+  })
+
+  it('memoryWrite dry_run reports an existing file and leaves it unchanged', async () => {
+    await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, name: 'keep.md', content: 'old', dry_run: false })
+    const r = await memoryWrite(CLAUDE_DESKTOP_ROOT_PATH, {
+      space_id: SPACE_ID,
+      name: 'keep.md',
+      content: 'new',
+      dry_run: true
+    })
+    expect(r).toMatchObject({ dry_run: true, written: false, existed: true })
+    expect(await fs.readFile(path.join(MEMORY_DIR, 'keep.md'), 'utf-8')).toBe('old')
+  })
+
+  it('memoryIndexWrite dry_run leaves MEMORY.md untouched, and a real write reports it', async () => {
+    const preview = await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, {
+      space_id: SPACE_ID,
+      content: 'idx',
+      dry_run: true
+    })
+    expect(preview).toEqual({ space_id: SPACE_ID, dry_run: true, written: false, existed: false, bytes: 3 })
+    await expect(fs.stat(path.join(MEMORY_DIR, 'MEMORY.md'))).rejects.toThrow(/ENOENT/)
+    const real = await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, {
+      space_id: SPACE_ID,
+      content: 'idx',
+      dry_run: false
+    })
+    expect(real).toMatchObject({ dry_run: false, written: true, existed: false })
+  })
+})
+
 describe('memoryIndexWrite', () => {
   it('writes MEMORY.md', async () => {
-    const r = await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, content: 'index content' })
+    const r = await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, {
+      space_id: SPACE_ID,
+      content: 'index content',
+      dry_run: false
+    })
     expect(r.bytes).toBe('index content'.length)
     const onDisk = await fs.readFile(path.join(MEMORY_DIR, 'MEMORY.md'), 'utf-8')
     expect(onDisk).toBe('index content')
   })
 
   it('overwrites existing MEMORY.md', async () => {
-    await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, content: 'first' })
-    await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, content: 'second' })
+    await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, content: 'first', dry_run: false })
+    await memoryIndexWrite(CLAUDE_DESKTOP_ROOT_PATH, { space_id: SPACE_ID, content: 'second', dry_run: false })
     const onDisk = await fs.readFile(path.join(MEMORY_DIR, 'MEMORY.md'), 'utf-8')
     expect(onDisk).toBe('second')
   })

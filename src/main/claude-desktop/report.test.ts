@@ -103,7 +103,7 @@ describe('reportClean', () => {
 
 describe('reportWrite', () => {
   it('writes a report with a default (today) date', async () => {
-    const r = await reportWrite(HOUSEKEEPING_PATH, { content: '# audit' })
+    const r = await reportWrite(HOUSEKEEPING_PATH, { content: '# audit', dry_run: false })
     expect(r.filename).toMatch(/^cowork-audit-\d{4}-\d{2}-\d{2}\.md$/)
     expect(r.bytes).toBe(7)
     const onDisk = await fs.readFile(r.path, 'utf-8')
@@ -111,18 +111,45 @@ describe('reportWrite', () => {
   })
 
   it('uses an explicit date when provided', async () => {
-    const r = await reportWrite(HOUSEKEEPING_PATH, { content: '# audit', date: '2026-04-15' })
+    const r = await reportWrite(HOUSEKEEPING_PATH, { content: '# audit', date: '2026-04-15', dry_run: false })
     expect(r.filename).toBe('cowork-audit-2026-04-15.md')
   })
 
   it('rejects an invalid date format', async () => {
-    await expect(reportWrite(HOUSEKEEPING_PATH, { content: 'x', date: 'not-a-date' })).rejects.toThrow(/Invalid date/)
-    await expect(reportWrite(HOUSEKEEPING_PATH, { content: 'x', date: '2026-4-15' })).rejects.toThrow(/Invalid date/)
+    await expect(reportWrite(HOUSEKEEPING_PATH, { content: 'x', date: 'not-a-date', dry_run: false })).rejects.toThrow(
+      /Invalid date/
+    )
+    await expect(reportWrite(HOUSEKEEPING_PATH, { content: 'x', date: '2026-4-15', dry_run: false })).rejects.toThrow(
+      /Invalid date/
+    )
+  })
+
+  it('dry_run reports the target without creating the directory or the file', async () => {
+    await fs.rm(HOUSEKEEPING_PATH, { recursive: true, force: true })
+    const r = await reportWrite(HOUSEKEEPING_PATH, { content: '# x', date: '2026-01-02', dry_run: true })
+    expect(r).toMatchObject({
+      filename: 'cowork-audit-2026-01-02.md',
+      bytes: 3,
+      dry_run: true,
+      written: false,
+      existed: false
+    })
+    await expect(fs.stat(HOUSEKEEPING_PATH)).rejects.toThrow(/ENOENT/)
+  })
+
+  it('dry_run reports an existing report for the date and leaves it unchanged', async () => {
+    await reportWrite(HOUSEKEEPING_PATH, { content: 'old', date: '2026-01-03', dry_run: false })
+    const r = await reportWrite(HOUSEKEEPING_PATH, { content: 'new', date: '2026-01-03', dry_run: true })
+    expect(r).toMatchObject({ dry_run: true, written: false, existed: true })
+    expect(await fs.readFile(r.path, 'utf-8')).toBe('old')
+    const real = await reportWrite(HOUSEKEEPING_PATH, { content: 'new', date: '2026-01-03', dry_run: false })
+    expect(real).toMatchObject({ dry_run: false, written: true, existed: true })
+    expect(await fs.readFile(real.path, 'utf-8')).toBe('new')
   })
 
   it('creates the housekeeping directory when missing', async () => {
     await fs.rm(HOUSEKEEPING_PATH, { recursive: true, force: true })
-    const r = await reportWrite(HOUSEKEEPING_PATH, { content: '# x', date: '2026-01-01' })
+    const r = await reportWrite(HOUSEKEEPING_PATH, { content: '# x', date: '2026-01-01', dry_run: false })
     const onDisk = await fs.readFile(r.path, 'utf-8')
     expect(onDisk).toBe('# x')
   })

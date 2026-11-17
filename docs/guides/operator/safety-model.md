@@ -6,19 +6,19 @@ Read this before the first deletion. This server removes files from directories 
 
 **The access-level gate decides which tools exist.** At boot, each tool's level is derived from its MCP annotations — `readOnlyHint: true` means `read`, `destructiveHint: true` means `destructive`, and a tool with missing or partial annotations is treated as `destructive` rather than assumed harmless. A tool is registered only when its derived level is at or below `MCP_HOUSEKEEPING_CLAUDE_ACCESS_LEVEL`, which defaults to `read`. At that default the seventeen deleting and overwriting tools are not merely refused, they are absent: the model cannot see them, name them, or call them.
 
-**The `dry_run` default decides whether a visible tool acts.** Every deleting tool takes `dry_run`, defaulting to `true`. A first call previews: it returns the exact list of what would be removed and the space that would be freed, and changes nothing. Only `dry_run: false` deletes.
+**The `dry_run` default decides whether a visible tool acts.** Every deleting or overwriting tool takes `dry_run`, defaulting to `true`. A first call previews and changes nothing: a deletion returns the exact list of what would be removed and the space that would be freed, and a write returns its target and whether it would overwrite. Only `dry_run: false` acts.
 
 Both layers are required, and they guard different things. The gate controls _visibility_ — what the model could ever do in this session. `dry_run` controls _effect_ — whether this particular call does it. Raising the access level does not disarm `dry_run`, and leaving `dry_run` at its default does not make it safe to run at `destructive` in a session where you are not paying attention.
 
-## The overwriting tools have no preview
+## The overwriting tools preview what, not how
 
-This is the exception worth knowing before you meet it. `dry_run` guards the tools that _delete_. The tools that _overwrite_ do not have it:
+`dry_run` guards the tools that _overwrite_ as well as those that _delete_:
 
-- `claude_desktop_memory_write` and `claude_code_memory_write` create or replace a memory file's entire contents on the first call.
+- `claude_desktop_memory_write` and `claude_code_memory_write` create or replace a memory file's entire contents.
 - `claude_desktop_memory_index_write` and `claude_code_memory_index_write` replace a space's or project's whole `MEMORY.md`.
 - `claude_desktop_report_write` creates or overwrites `cowork-audit-YYYY-MM-DD.md` for the given date.
 
-They are annotated `destructive` — so they are invisible at the default access level and an MCP client can prompt before invoking them — but there is no preview step inside the server. Read the current contents with the matching read tool before asking for a write, and treat "consolidate this memory space" as an operation to review rather than to delegate.
+Their preview is thinner than a deletion's. It reports the target, whether a file is already there, and how many bytes would be written; it does not show the current contents or a diff. They are annotated `destructive`, so they are invisible at the default access level and an MCP client can prompt before invoking them. Read the current contents with the matching read tool before passing `dry_run: false`, and treat "consolidate this memory space" as an operation to review rather than to delegate.
 
 ## What the server refuses
 

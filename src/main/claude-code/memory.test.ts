@@ -27,41 +27,46 @@ beforeEach(async () => {
 
 describe('claude-code memoryWrite + memoryRead', () => {
   it('writes a memory file and reads it back', async () => {
-    const w = await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'feedback.md', content: '# hi' })
+    const w = await memoryWrite(CLAUDE_CODE_ROOT_PATH, {
+      project: PROJECT,
+      name: 'feedback.md',
+      content: '# hi',
+      dry_run: false
+    })
     expect(w.bytes).toBe(4)
     const r = await memoryRead(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'feedback.md' })
     expect(r.content).toBe('# hi')
   })
 
   it('rejects non-.md names', async () => {
-    await expect(memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'bad', content: 'x' })).rejects.toThrow(
-      /must end with .md/
-    )
+    await expect(
+      memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'bad', content: 'x', dry_run: false })
+    ).rejects.toThrow(/must end with .md/)
   })
 
   it('rejects path traversal in name', async () => {
     await expect(
-      memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: '../escape.md', content: 'x' })
+      memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: '../escape.md', content: 'x', dry_run: false })
     ).rejects.toThrow(/Path escapes root/)
   })
 
   it('rejects path traversal in project', async () => {
     await expect(
-      memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: '../other', name: 'a.md', content: 'x' })
+      memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: '../other', name: 'a.md', content: 'x', dry_run: false })
     ).rejects.toThrow(/Path escapes root/)
   })
 })
 
 describe('claude-code memoryDelete', () => {
   it('deletes an existing file when dry_run is false', async () => {
-    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'tmp.md', content: 'x' })
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'tmp.md', content: 'x', dry_run: false })
     const r = await memoryDelete(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'tmp.md', dry_run: false })
     expect(r).toMatchObject({ deleted: true, dry_run: false, bytes: 1 })
     await expect(memoryRead(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'tmp.md' })).rejects.toThrow(/not found/)
   })
 
   it('previews without deleting when dry_run is true', async () => {
-    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'keep.md', content: 'abc' })
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'keep.md', content: 'abc', dry_run: false })
     const r = await memoryDelete(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'keep.md', dry_run: true })
     expect(r).toMatchObject({ deleted: false, dry_run: true, bytes: 3 })
     // File must still be readable — preview only.
@@ -90,9 +95,9 @@ describe('claude-code memoryList', () => {
   })
 
   it('lists .md files alphabetically + returns MEMORY.md index', async () => {
-    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'b.md', content: 'b' })
-    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'a.md', content: 'a' })
-    await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: '- [a](a.md)' })
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'b.md', content: 'b', dry_run: false })
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'a.md', content: 'a', dry_run: false })
+    await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: '- [a](a.md)', dry_run: false })
     const r = await memoryList(CLAUDE_CODE_ROOT_PATH, { project: PROJECT })
     expect(r.files.map((f) => f.name)).toEqual(['MEMORY.md', 'a.md', 'b.md'])
     expect(r.index).toBe('- [a](a.md)')
@@ -101,18 +106,18 @@ describe('claude-code memoryList', () => {
   it('sorts MEMORY.md to the top regardless of where it appears in readdir order', async () => {
     // Write enough files that the sort comparator visits both directions of
     // the "a is MEMORY.md" / "b is MEMORY.md" branches.
-    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'c.md', content: 'c' })
-    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'd.md', content: 'd' })
-    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'a.md', content: 'a' })
-    await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: 'idx' })
-    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'b.md', content: 'b' })
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'c.md', content: 'c', dry_run: false })
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'd.md', content: 'd', dry_run: false })
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'a.md', content: 'a', dry_run: false })
+    await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: 'idx', dry_run: false })
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'b.md', content: 'b', dry_run: false })
     const r = await memoryList(CLAUDE_CODE_ROOT_PATH, { project: PROJECT })
     expect(r.files.map((f) => f.name)).toEqual(['MEMORY.md', 'a.md', 'b.md', 'c.md', 'd.md'])
   })
 
   it('skips non-.md files and subdirectories, returns null index when MEMORY.md is absent', async () => {
     // .md file (kept)
-    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'kept.md', content: 'k' })
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'kept.md', content: 'k', dry_run: false })
     // non-.md file (filtered by `!e.name.endsWith('.md')`)
     await fs.writeFile(path.join(MEMORY_DIR, 'note.txt'), 'ignored')
     // subdirectory (filtered by `!e.isFile()`)
@@ -123,10 +128,60 @@ describe('claude-code memoryList', () => {
   })
 })
 
+describe('claude-code memory writes: dry_run', () => {
+  it('memoryWrite dry_run creates neither the file nor its directory', async () => {
+    const fresh = '-Users-foo-fresh'
+    const r = await memoryWrite(CLAUDE_CODE_ROOT_PATH, {
+      project: fresh,
+      name: 'new.md',
+      content: 'abc',
+      dry_run: true
+    })
+    expect(r).toEqual({ project: fresh, name: 'new.md', dry_run: true, written: false, existed: false, bytes: 3 })
+    await expect(fs.stat(path.join(CLAUDE_CODE_ROOT_PATH, 'projects', fresh))).rejects.toThrow(/ENOENT/)
+  })
+
+  it('memoryWrite dry_run reports an existing file and leaves it unchanged', async () => {
+    await memoryWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, name: 'keep.md', content: 'old', dry_run: false })
+    const r = await memoryWrite(CLAUDE_CODE_ROOT_PATH, {
+      project: PROJECT,
+      name: 'keep.md',
+      content: 'new',
+      dry_run: true
+    })
+    expect(r).toMatchObject({ dry_run: true, written: false, existed: true })
+    expect(await fs.readFile(path.join(MEMORY_DIR, 'keep.md'), 'utf-8')).toBe('old')
+  })
+
+  it('memoryWrite with dry_run false reports the write and whether it overwrote', async () => {
+    const first = await memoryWrite(CLAUDE_CODE_ROOT_PATH, {
+      project: PROJECT,
+      name: 'w.md',
+      content: 'a',
+      dry_run: false
+    })
+    expect(first).toMatchObject({ dry_run: false, written: true, existed: false })
+    const second = await memoryWrite(CLAUDE_CODE_ROOT_PATH, {
+      project: PROJECT,
+      name: 'w.md',
+      content: 'b',
+      dry_run: false
+    })
+    expect(second).toMatchObject({ dry_run: false, written: true, existed: true })
+  })
+
+  it('memoryIndexWrite dry_run leaves MEMORY.md untouched', async () => {
+    await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: 'old', dry_run: false })
+    const r = await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: 'new', dry_run: true })
+    expect(r).toEqual({ project: PROJECT, dry_run: true, written: false, existed: true, bytes: 3 })
+    expect(await fs.readFile(path.join(MEMORY_DIR, 'MEMORY.md'), 'utf-8')).toBe('old')
+  })
+})
+
 describe('claude-code memoryIndexWrite', () => {
   it('writes MEMORY.md and overwrites', async () => {
-    await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: 'first' })
-    await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: 'second' })
+    await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: 'first', dry_run: false })
+    await memoryIndexWrite(CLAUDE_CODE_ROOT_PATH, { project: PROJECT, content: 'second', dry_run: false })
     const onDisk = await fs.readFile(path.join(MEMORY_DIR, 'MEMORY.md'), 'utf-8')
     expect(onDisk).toBe('second')
   })

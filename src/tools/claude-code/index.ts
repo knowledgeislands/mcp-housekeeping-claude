@@ -150,6 +150,9 @@ const ccOrphanProjectsPruneOutput = z.object({
 const ccMemoryWriteOutput = z.object({
   project: z.string(),
   name: z.string(),
+  dry_run: z.boolean(),
+  written: z.boolean(),
+  existed: z.boolean(),
   bytes: z.number()
 })
 const ccMemoryDeleteOutput = z.object({
@@ -161,6 +164,9 @@ const ccMemoryDeleteOutput = z.object({
 })
 const ccMemoryIndexWriteOutput = z.object({
   project: z.string(),
+  dry_run: z.boolean(),
+  written: z.boolean(),
+  existed: z.boolean(),
   bytes: z.number()
 })
 const ccAcquisitionCheckpointOutput = z.object({
@@ -510,12 +516,13 @@ export const registerClaudeCodeTools = (server: McpServer, cfg: Config): void =>
     'claude_code_memory_write',
     {
       title: 'Claude Code Cleaner: write/update memory file',
-      description: `Create or overwrite a memory file at ~/.claude/projects/<project>/memory/<name>.`,
+      description: `Create or overwrite a memory file at ~/.claude/projects/<project>/memory/<name>. dry_run defaults to TRUE — it reports whether the file exists and the bytes that would be written, without writing; pass dry_run=false to actually write.`,
       inputSchema: z
         .object({
           project: projectArg,
           name: memoryFileNameArg,
-          content: z.string()
+          content: z.string(),
+          dry_run: z.boolean().default(true).describe('Default true (preview only). Pass false to actually write.')
         })
         .strict(),
       outputSchema: ccMemoryWriteOutput,
@@ -558,8 +565,14 @@ export const registerClaudeCodeTools = (server: McpServer, cfg: Config): void =>
     'claude_code_memory_index_write',
     {
       title: 'Claude Code Cleaner: replace MEMORY.md',
-      description: `Replace the contents of ~/.claude/projects/<project>/memory/MEMORY.md.`,
-      inputSchema: z.object({ project: projectArg, content: z.string() }).strict(),
+      description: `Replace the contents of ~/.claude/projects/<project>/memory/MEMORY.md. dry_run defaults to TRUE — it reports whether MEMORY.md exists and the bytes that would be written, without writing; pass dry_run=false to actually write.`,
+      inputSchema: z
+        .object({
+          project: projectArg,
+          content: z.string(),
+          dry_run: z.boolean().default(true).describe('Default true (preview only). Pass false to actually write.')
+        })
+        .strict(),
       outputSchema: ccMemoryIndexWriteOutput,
       annotations: DESTRUCTIVE
     },

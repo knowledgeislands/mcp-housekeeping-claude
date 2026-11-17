@@ -1,7 +1,7 @@
 import type { Dirent } from 'node:fs'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { assertRealPathWithinRoot, isNodeError, resolveWithinRoot } from '../../utils/utils.js'
+import { assertRealPathWithinRoot, isNodeError, pathExists, resolveWithinRoot } from '../../utils/utils.js'
 
 const memoryDir = (workspaceRoot: string, spaceId: string): string => {
   return resolveWithinRoot(path.join(workspaceRoot, 'spaces'), path.join(spaceId, 'memory'))
@@ -59,16 +59,19 @@ export const memoryRead = async (workspaceRoot: string, args: { space_id: string
   }
 }
 
-export const memoryWrite = async (workspaceRoot: string, args: { space_id: string; name: string; content: string }) => {
+export const memoryWrite = async (
+  workspaceRoot: string,
+  args: { space_id: string; name: string; content: string; dry_run: boolean }
+) => {
   const p = memoryFilePath(workspaceRoot, args.space_id, args.name)
   await assertRealPathWithinRoot(workspaceRoot, p)
+  const existed = await pathExists(p)
+  const bytes = Buffer.byteLength(args.content, 'utf-8')
+  // A dry run validates and reports, with no mkdir and no write.
+  if (args.dry_run) return { space_id: args.space_id, name: args.name, dry_run: true, written: false, existed, bytes }
   await fs.mkdir(path.dirname(p), { recursive: true })
   await fs.writeFile(p, args.content, 'utf-8')
-  return {
-    space_id: args.space_id,
-    name: args.name,
-    bytes: Buffer.byteLength(args.content, 'utf-8')
-  }
+  return { space_id: args.space_id, name: args.name, dry_run: false, written: true, existed, bytes }
 }
 
 export const memoryDelete = async (
@@ -96,13 +99,16 @@ export const memoryDelete = async (
   return { space_id: args.space_id, name: args.name, dry_run: false, deleted: true, bytes }
 }
 
-export const memoryIndexWrite = async (workspaceRoot: string, args: { space_id: string; content: string }) => {
+export const memoryIndexWrite = async (
+  workspaceRoot: string,
+  args: { space_id: string; content: string; dry_run: boolean }
+) => {
   const p = memoryFilePath(workspaceRoot, args.space_id, 'MEMORY.md')
   await assertRealPathWithinRoot(workspaceRoot, p)
+  const existed = await pathExists(p)
+  const bytes = Buffer.byteLength(args.content, 'utf-8')
+  if (args.dry_run) return { space_id: args.space_id, dry_run: true, written: false, existed, bytes }
   await fs.mkdir(path.dirname(p), { recursive: true })
   await fs.writeFile(p, args.content, 'utf-8')
-  return {
-    space_id: args.space_id,
-    bytes: Buffer.byteLength(args.content, 'utf-8')
-  }
+  return { space_id: args.space_id, dry_run: false, written: true, existed, bytes }
 }

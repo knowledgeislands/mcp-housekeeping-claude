@@ -16,9 +16,9 @@ Read [The safety model](safety-model.md) first if you have not. Steps 1, 3, and 
 2. **Run every read-only check** — `claude_desktop_storage_summary`, `claude_desktop_sessions_obsolete`, `claude_desktop_artifacts_health`, `claude_desktop_outputs_obsolete`, `claude_desktop_backups_summary`, `claude_desktop_memory_spaces_summary`, `claude_desktop_plugins_inventory`, `claude_desktop_project_cache_status`, and `claude_desktop_debug_info`. These are independent and can run in parallel. Their flags are what the report is about.
 3. **Prune what the checks found** — `claude_desktop_artifacts_prune` removes unstarred artifacts beyond the top five by `lastUpdated`. Read its preview before passing `dry_run: false`.
 4. **Choose a memory space to consolidate** — `claude_desktop_memory_spaces_summary` again, or its result from step 2, shows which space has grown.
-5. **Review that space's memory** — `claude_desktop_memory_list` and `claude_desktop_memory_read`. Read before writing; the write tools have no preview.
-6. **Consolidate** — `claude_desktop_memory_write`, `claude_desktop_memory_delete`, and `claude_desktop_memory_index_write` as the review calls for. Write and index-write take effect on the first call; delete previews by default.
-7. **Write the report** — `claude_desktop_report_write` saves `cowork-audit-YYYY-MM-DD.md` into the report directory, dated today unless you pass an explicit `YYYY-MM-DD`.
+5. **Review that space's memory** — `claude_desktop_memory_list` and `claude_desktop_memory_read`. Read before writing: a write's preview says only whether the file exists, not what it holds.
+6. **Consolidate** — `claude_desktop_memory_write`, `claude_desktop_memory_delete`, and `claude_desktop_memory_index_write` as the review calls for. All three preview by default; pass `dry_run: false` to act.
+7. **Write the report** — `claude_desktop_report_write` saves `cowork-audit-YYYY-MM-DD.md` into the report directory, dated today unless you pass an explicit `YYYY-MM-DD`. It previews by default, so pass `dry_run: false` to write it.
 
 Running the whole sequence is one request rather than seven:
 
