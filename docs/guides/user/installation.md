@@ -21,7 +21,7 @@ bun install
 bun run build
 ```
 
-`bun install` also runs `prepare`, which configures the husky pre-commit hook. That matters only if you intend to commit to the checkout; it is harmless otherwise.
+`bun install` also runs `prepare`, which points Git at the committed `.githooks/` hooks. That matters only if you intend to commit to the checkout; it is harmless otherwise.
 
 `bun run build` compiles to `dist/`, and the file an MCP client launches is `dist/mcp-server/index.js`. Rebuild after every `git pull` — the client runs the compiled output, not the source.
 

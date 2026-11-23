@@ -68,8 +68,8 @@ Test files run without file parallelism and define their own fixture roots under
 Before handing a change over:
 
 ```bash
-bunx tsc -p tsconfig.json --noEmit   # or: bun run ki:lint:types
-bun run ki:lint:check                # Biome lint + format check
+bunx tsc -p tsconfig.json --noEmit   # TypeScript
+bunx biome check .                   # Biome lint + format check
 bunx rumdl check .                   # Markdown
 bun run test:coverage
 bun run build
@@ -85,5 +85,5 @@ ki repo audit --concise --progress never
 
 - **Coverage below threshold** — the report under `reports/coverage/` names the uncovered lines. Add the test; do not lower the threshold.
 - **A smoke failure naming a tool** — the wire surface no longer matches `EXPECTED_TOOLS`. If you added a tool, [Adding a tool](adding-a-tool.md) lists everywhere that has to move together.
-- **A Biome or rumdl formatting failure** — `bun run ki:lint:fix` and `bunx rumdl check --fix` repair the mechanical ones.
+- **A Biome or rumdl formatting failure** — `ki repo conform --repo .` and `bunx rumdl check --fix` repair the mechanical ones.
 - **A test failure you cannot reproduce on a second run** — check whether another process is writing to this checkout before believing it.
