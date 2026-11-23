@@ -20,7 +20,7 @@ Start with the audience you belong to.
 
 A guide answers how. The neighbouring documents answer other questions, and these guides link them rather than restating them.
 
-- [Decision Records](../decisions/README.md) answer why. Where a guide explains a choice at length, the durable rationale belongs there.
+- [Decision Records](../decisions/_index.md) answer why. Where a guide explains a choice at length, the durable rationale belongs there.
 - [Roadmap items](../roadmap) answer when, covering behaviour planned rather than delivered.
 - [`CLAUDE.md`](../../CLAUDE.md) and [`AGENTS.md`](../../AGENTS.md) hold the architecture invariants and security requirements the code must satisfy. A developer guide tells you how to work within them; it does not restate them.
 - [`CONTRIBUTING.md`](../../CONTRIBUTING.md) holds contributor setup, the commit convention, the testing convention, and the pre-PR checklist.

@@ -6,13 +6,13 @@ An MCP (Model Context Protocol) server for housekeeping the three filesystem are
 
 ## Documentation
 
-Practical instructions live in [`docs/guides/`](./docs/guides/README.md), grouped by the audience that needs them.
+Practical instructions live in [`docs/guides/`](./docs/guides/_index.md), grouped by the audience that needs them.
 
 - **[User guides](./docs/guides/user/README.md)** — [install and connect the server](./docs/guides/user/installation.md), [configure what it may do](./docs/guides/user/configuration.md), [ask for a picture of your state](./docs/guides/user/everyday-use.md), and [recover from a failure](./docs/guides/user/troubleshooting.md).
 - **[Operator guides](./docs/guides/operator/README.md)** — [the safety model](./docs/guides/operator/safety-model.md) (read this before the first deletion), [cleaning up state](./docs/guides/operator/cleaning-up-state.md) area by area, and [the daily audit](./docs/guides/operator/daily-audit.md).
 - **[Developer guides](./docs/guides/developer/README.md)** — [local development](./docs/guides/developer/local-development.md) and [adding a tool](./docs/guides/developer/adding-a-tool.md).
 
-[`CONTRIBUTING.md`](./CONTRIBUTING.md) holds the contributor setup and conventions, [`CLAUDE.md`](./CLAUDE.md) the architecture invariants and security requirements, [`SECURITY.md`](./SECURITY.md) the vulnerability-reporting route, and [`docs/decisions/`](./docs/decisions/README.md) the durable rationale.
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) holds the contributor setup and conventions, [`CLAUDE.md`](./CLAUDE.md) the architecture invariants and security requirements, [`SECURITY.md`](./SECURITY.md) the vulnerability-reporting route, and [`docs/decisions/`](./docs/decisions/_index.md) the durable rationale.
 
 ## Features
 
